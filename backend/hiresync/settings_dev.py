@@ -75,12 +75,13 @@ TEMPLATES = [
     },
 ]
 
-# MongoDB Atlas
+# MongoDB Atlas — connection string loaded from environment, never hardcoded
+import os
 DATABASES = {
     "default": {
         "ENGINE": "django_mongodb_backend",
         "NAME": "hiresync",
-        "HOST": "mongodb+srv://mananghonia:REDACTED@cluster0.d2ndwn7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
+        "HOST": os.environ.get("MONGODB_URI", ""),
     }
 }
 
