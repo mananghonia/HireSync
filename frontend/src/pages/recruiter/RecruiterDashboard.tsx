@@ -31,7 +31,7 @@ export default function RecruiterDashboard() {
           { label: "Active Jobs", value: overview.active_jobs ?? 0, icon: Briefcase, color: "text-blue-600", bg: "bg-blue-50" },
           { label: "Total Views", value: overview.total_views ?? 0, icon: Eye, color: "text-purple-600", bg: "bg-purple-50" },
           { label: "Applications", value: overview.total_applications ?? 0, icon: Users, color: "text-yellow-600", bg: "bg-yellow-50" },
-          { label: "Conversion Rate", value: `${overview.conversion_rate ?? 0}%`, icon: TrendingUp, color: "text-green-600", bg: "bg-green-50" },
+          { label: "Offer/Hire Rate", value: `${overview.conversion_rate ?? 0}%`, icon: TrendingUp, color: "text-green-600", bg: "bg-green-50" },
         ].map(({ label, value, icon: Icon, color, bg }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-5">
             <div className={`w-10 h-10 ${bg} rounded-lg flex items-center justify-center mb-3`}>

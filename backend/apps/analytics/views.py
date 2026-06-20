@@ -28,7 +28,8 @@ class RecruiterDashboardView(APIView):
         status_breakdown = dict(status_counts)
 
         hired_count = status_counts.get("hired", 0)
-        conversion_rate = round(hired_count / total_applications * 100, 1) if total_applications else 0
+        successful = hired_count + status_counts.get("offer_made", 0)
+        conversion_rate = round(successful / total_applications * 100, 1) if total_applications else 0
 
         # Top performing jobs (by application count)
         job_app_counts = Counter(str(a.job_id) for a in applications)
