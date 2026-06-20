@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { Send, MessageCircle } from "lucide-react";
 import api from "../lib/axios";
 import { useAuth } from "../hooks/useAuth";
@@ -7,6 +8,7 @@ import { useAuth } from "../hooks/useAuth";
 export default function MessagesPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [activeConvo, setActiveConvo] = useState<any>(null);
   const [message, setMessage] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
@@ -16,6 +18,14 @@ export default function MessagesPage() {
     queryKey: ["conversations"],
     queryFn: () => api.get("/messaging/conversations/").then((r) => r.data.results ?? r.data),
   });
+
+  // Auto-open conversation from ?convo=ID (navigated from Applicants/Applications page)
+  useEffect(() => {
+    const convoId = searchParams.get("convo");
+    if (!convoId || !conversations) return;
+    const found = conversations.find((c: any) => c.id === convoId);
+    if (found) setActiveConvo(found);
+  }, [conversations, searchParams]);
 
   const { data: messages, refetch: refetchMessages } = useQuery({
     queryKey: ["messages", activeConvo?.id],

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { MessageCircle } from "lucide-react";
 import api from "../../lib/axios";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -22,6 +23,13 @@ export default function ApplicationsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["my-applications"],
     queryFn: () => api.get("/applications/my/").then((r) => r.data.results),
+  });
+
+  const messageMutation = useMutation({
+    mutationFn: (recruiterId: string) =>
+      api.post("/messaging/conversations/", { user_id: recruiterId }).then((r) => r.data),
+    onSuccess: (convo) => navigate(`/messages?convo=${convo.id}`),
+    onError: () => toast.error("Could not open conversation."),
   });
 
   const withdrawMutation = useMutation({
@@ -49,6 +57,13 @@ export default function ApplicationsPage() {
               <div className="text-xs text-gray-400 mt-1">Applied {new Date(app.applied_at).toLocaleDateString()}</div>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => messageMutation.mutate(app.job?.recruiter_id)}
+                disabled={messageMutation.isPending || !app.job?.recruiter_id}
+                title="Message recruiter"
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:text-primary-600 hover:border-primary-300 hover:bg-primary-50 transition-colors disabled:opacity-40">
+                <MessageCircle className="w-4 h-4" />
+              </button>
               <span className={`text-xs px-3 py-1 rounded-full font-medium capitalize ${STATUS_STYLES[app.status] || "bg-gray-100 text-gray-600"}`}>
                 {app.status.replace(/_/g, " ")}
               </span>

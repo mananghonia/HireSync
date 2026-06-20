@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { User, FileText, ExternalLink } from "lucide-react";
+import { User, FileText, MessageCircle } from "lucide-react";
 import api from "../../lib/axios";
 
 const PIPELINE_STAGES = ["applied", "viewed", "shortlisted", "interview_scheduled", "interviewed", "offer_made", "hired", "rejected"];
@@ -21,7 +21,15 @@ const STAGE_COLORS: Record<string, string> = {
 export default function ApplicantsPage() {
   const { jobId } = useParams();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [filterStatus, setFilterStatus] = useState("");
+
+  const messageMutation = useMutation({
+    mutationFn: (userId: string) =>
+      api.post("/messaging/conversations/", { user_id: userId }).then((r) => r.data),
+    onSuccess: (convo) => navigate(`/messages?convo=${convo.id}`),
+    onError: () => toast.error("Could not open conversation."),
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ["applicants", jobId, filterStatus],
@@ -74,7 +82,14 @@ export default function ApplicantsPage() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => messageMutation.mutate(app.applicant?.id)}
+                  disabled={messageMutation.isPending}
+                  title="Message applicant"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:text-primary-600 hover:border-primary-300 hover:bg-primary-50 transition-colors disabled:opacity-50">
+                  <MessageCircle className="w-4 h-4" />
+                </button>
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium capitalize ${STAGE_COLORS[app.status] || "bg-gray-100 text-gray-600"}`}>
                   {app.status.replace(/_/g, " ")}
                 </span>
