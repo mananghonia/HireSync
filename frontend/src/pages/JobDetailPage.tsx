@@ -105,9 +105,19 @@ export default function JobDetailPage() {
               {job.application_status === "withdrawn" ? "Re-apply for this position" : "Apply for this position"}
             </h2>
 
-            {/* Resume section */}
+            {/* Resume section — mandatory */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Resume</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Resume <span className="text-red-500">*</span>
+              </label>
+
+              {!seekerProfile?.resume && !resumeFile && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-3 text-sm text-amber-700">
+                  ⚠️ You don't have a resume on your profile. Please upload one below or{" "}
+                  <a href="/profile" className="underline font-medium">go to Profile</a> to add one.
+                </div>
+              )}
+
               {seekerProfile?.resume && (
                 <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer mb-2 transition ${useProfileResume ? "border-primary-500 bg-primary-50" : "border-gray-200"}`}>
                   <input type="radio" checked={useProfileResume} onChange={() => { setUseProfileResume(true); setResumeFile(null); }} className="text-primary-600" />
@@ -118,11 +128,13 @@ export default function JobDetailPage() {
                   </div>
                 </label>
               )}
+
               <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition ${!useProfileResume ? "border-primary-500 bg-primary-50" : "border-gray-200"}`}>
                 <input type="radio" checked={!useProfileResume} onChange={() => setUseProfileResume(false)} className="text-primary-600" />
                 <Upload className="w-4 h-4 text-gray-400" />
-                <span className="text-sm text-gray-600">Upload a different resume (PDF)</span>
+                <span className="text-sm text-gray-600">Upload resume (PDF, max 5MB)</span>
               </label>
+
               {!useProfileResume && (
                 <div className="mt-2 ml-8">
                   {resumeFile ? (
@@ -154,7 +166,9 @@ export default function JobDetailPage() {
               rows={5}
               className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none mb-4" />
             <div className="flex gap-3">
-              <button onClick={() => applyMutation.mutate()} disabled={applyMutation.isPending}
+              <button
+                onClick={() => applyMutation.mutate()}
+                disabled={applyMutation.isPending || (!seekerProfile?.resume && !resumeFile && useProfileResume) || (!useProfileResume && !resumeFile)}
                 className="bg-primary-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2">
                 <Send className="w-4 h-4" />
                 {applyMutation.isPending ? "Submitting..." : "Submit Application"}

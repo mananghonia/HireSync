@@ -1,8 +1,5 @@
-try:
-    from celery import shared_task
-except ImportError:
-    def shared_task(fn):
-        return fn
+def shared_task(fn):
+    return fn
 
 try:
     from asgiref.sync import async_to_sync

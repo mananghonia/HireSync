@@ -66,37 +66,91 @@ class JobSearchView(APIView):
 
 
 class JobRecommendationView(APIView):
-    """Returns top job matches for the authenticated seeker based on skill overlap."""
+    """
+    Returns top job matches based on:
+    1. Seeker's profile skills (primary signal)
+    2. Skills from jobs they've previously applied to (interest signal)
+    3. Experience level match
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         import math
+        from collections import Counter
+        from apps.applications.models import Application
+
         try:
             profile = request.user.seeker_profile
         except Exception:
             return Response({"results": []})
 
-        seeker_skills = set(profile.skills.values_list("id", flat=True))
-        if not seeker_skills:
-            jobs = Job.objects.filter(status="active").select_related("company", "recruiter").order_by("-created_at")[:20]
+        # --- Build interest profile ---
+        profile_skills = set(profile.skills.values_list("id", flat=True))
+
+        # Skills from previously applied jobs (weighted by recency — last 10 applications)
+        past_apps = (
+            Application.objects
+            .filter(applicant=request.user)
+            .exclude(status="withdrawn")
+            .select_related("job")
+            .order_by("-applied_at")[:10]
+        )
+        applied_skill_counts = Counter()
+        applied_titles = []
+        for app in past_apps:
+            job_skills = list(app.job.skills.values_list("id", flat=True))
+            for sk in job_skills:
+                applied_skill_counts[sk] += 1
+            applied_titles.append(app.job.title.lower())
+
+        # Combined interest: profile skills (weight 2) + applied skills (weight by frequency)
+        interest: dict = {sk: 2.0 for sk in profile_skills}
+        for sk, count in applied_skill_counts.items():
+            interest[sk] = interest.get(sk, 0) + count * 0.5
+
+        # If no interest signals at all, return recent jobs
+        if not interest:
+            jobs = (
+                Job.objects.filter(status="active")
+                .select_related("company", "recruiter")
+                .order_by("-created_at")[:20]
+            )
             serializer = JobListSerializer(jobs, many=True, context={"request": request})
             return Response({"results": serializer.data})
 
-        jobs = (
+        # Candidate jobs: active, not yet applied
+        candidates = (
             Job.objects.filter(status="active")
             .exclude(applications__applicant=request.user)
             .select_related("company", "recruiter")
         )
 
         scored = []
-        for job in jobs:
+        interest_magnitude = math.sqrt(sum(v * v for v in interest.values()))
+
+        for job in candidates:
             job_skills = set(job.skills.values_list("id", flat=True))
             if not job_skills:
                 continue
-            intersection = len(seeker_skills & job_skills)
-            score = intersection / math.sqrt(len(seeker_skills) * len(job_skills))
-            if score > 0:
-                scored.append((score, job))
+
+            # Cosine-like score against interest profile
+            dot = sum(interest.get(sk, 0) for sk in job_skills)
+            if dot == 0:
+                continue
+            job_magnitude = math.sqrt(len(job_skills))
+            score = dot / (interest_magnitude * job_magnitude)
+
+            # Bonus: experience level match
+            if profile.experience_level and job.experience_level == profile.experience_level:
+                score *= 1.2
+
+            # Bonus: title keyword overlap with past applications
+            if applied_titles:
+                job_title_lower = job.title.lower()
+                if any(word in job_title_lower for title in applied_titles for word in title.split() if len(word) > 3):
+                    score *= 1.1
+
+            scored.append((score, job))
 
         scored.sort(key=lambda x: x[0], reverse=True)
         top_jobs = [job for _, job in scored[:20]]

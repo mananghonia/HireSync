@@ -18,7 +18,7 @@ from .serializers import (
 def _fire(task_name, *args):
     try:
         from apps.notifications import tasks as t
-        getattr(t, task_name).delay(*args)
+        getattr(t, task_name)(*args)
     except Exception:
         pass
 
@@ -39,11 +39,42 @@ class SeekerApplicationViewSet(viewsets.ModelViewSet):
             .select_related("job__company", "job__recruiter")
         )
 
+    def _attach_resume(self, application, request):
+        """Attach resume: use uploaded file, or fall back to profile resume."""
+        uploaded = request.FILES.get("resume_snapshot")
+        if uploaded:
+            application.resume_snapshot = uploaded
+            application.save(update_fields=["resume_snapshot"])
+            return True
+        # Fall back to profile resume
+        try:
+            profile = request.user.seeker_profile
+            if profile.resume:
+                application.resume_snapshot.name = profile.resume.name
+                application.save(update_fields=["resume_snapshot"])
+                return True
+        except Exception:
+            pass
+        return False
+
     def create(self, request, *_args, **_kwargs):
         job_id = request.data.get("job")
         cover_letter = request.data.get("cover_letter", "")
 
-        # If a withdrawn application exists, reactivate it instead of creating a duplicate
+        # Ensure seeker has a resume (profile or uploaded)
+        has_upload = bool(request.FILES.get("resume_snapshot"))
+        has_profile_resume = False
+        try:
+            has_profile_resume = bool(request.user.seeker_profile.resume)
+        except Exception:
+            pass
+        if not has_upload and not has_profile_resume:
+            return Response(
+                {"detail": "Please upload a resume before applying. Go to your Profile page to upload one."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # If a withdrawn application exists, reactivate it
         existing = Application.objects.filter(applicant=request.user, job_id=job_id).first()
         if existing:
             if existing.status == "withdrawn":
@@ -51,6 +82,7 @@ class SeekerApplicationViewSet(viewsets.ModelViewSet):
                 existing.status = "applied"
                 existing.cover_letter = cover_letter
                 existing.save()
+                self._attach_resume(existing, request)
                 ApplicationStatusHistory.objects.create(
                     application=existing,
                     old_status=old_status,
@@ -69,6 +101,7 @@ class SeekerApplicationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         application = serializer.save(applicant=request.user)
+        self._attach_resume(application, request)
         ApplicationStatusHistory.objects.create(
             application=application,
             old_status="",
