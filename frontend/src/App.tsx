@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/shared/ProtectedRoute";
 // Auth pages
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 
 // Shared
 import JobSearchPage from "./pages/JobSearchPage";
@@ -40,6 +41,7 @@ export default function App() {
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/jobs" element={<Layout><JobSearchPage /></Layout>} />
         <Route path="/jobs/:id" element={<Layout><JobDetailPage /></Layout>} />
 

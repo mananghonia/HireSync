@@ -75,8 +75,10 @@ TEMPLATES = [
     },
 ]
 
-# MongoDB Atlas — connection string loaded from environment, never hardcoded
+# External service credentials — all loaded from environment
 import os
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 DATABASES = {
     "default": {
         "ENGINE": "django_mongodb_backend",

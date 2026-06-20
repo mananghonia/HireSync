@@ -1,6 +1,9 @@
 import uuid
+import random
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from django.utils import timezone
+from django_mongodb_backend.fields import ObjectIdAutoField
 
 
 class UserManager(BaseUserManager):
@@ -39,6 +42,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
+    google_id = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -68,3 +72,28 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_admin_user(self):
         return self.role == self.ADMIN
+
+
+class OTPVerification(models.Model):
+    id = ObjectIdAutoField(primary_key=True)
+    email = models.EmailField()
+    otp = models.CharField(max_length=6)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "otp_verifications"
+
+    @classmethod
+    def generate(cls, email):
+        cls.objects.filter(email=email, is_used=False).delete()
+        otp = str(random.randint(100000, 999999))
+        return cls.objects.create(
+            email=email,
+            otp=otp,
+            expires_at=timezone.now() + timezone.timedelta(minutes=10),
+        )
+
+    def is_valid(self):
+        return not self.is_used and timezone.now() < self.expires_at

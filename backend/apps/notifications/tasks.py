@@ -22,19 +22,36 @@ def _push_to_ws(group_name, payload):
         pass
 
 
+def _ws_payload(notification):
+    return {
+        "type": "notification_message",
+        "notification": {
+            "id": str(notification.id),
+            "type": notification.notification_type,
+            "title": notification.title,
+            "message": notification.message,
+            "data": notification.data,
+            "created_at": notification.created_at.isoformat(),
+        },
+    }
+
+
 @shared_task
 def send_application_status_notification(application_id, new_status):
     from .models import Notification
     from apps.applications.models import Application
+    from core.email import send_status_update_email
 
     try:
-        application = Application.objects.select_related("applicant", "job__company").get(id=application_id)
+        application = Application.objects.select_related(
+            "applicant", "job", "job__company"
+        ).get(id=application_id)
     except Application.DoesNotExist:
         return
 
     status_labels = {
         "viewed": "Your application has been viewed",
-        "shortlisted": "You've been shortlisted",
+        "shortlisted": "You've been shortlisted!",
         "interview_scheduled": "Interview has been scheduled",
         "offer_made": "You have received an offer",
         "hired": "Congratulations! You've been hired",
@@ -42,39 +59,44 @@ def send_application_status_notification(application_id, new_status):
     }
 
     title = status_labels.get(new_status, "Application update")
-    message = f"Your application for {application.job.title} at {application.job.company.name} is now: {new_status.replace('_', ' ').title()}"
+    message = (
+        f"Your application for {application.job.title} at "
+        f"{application.job.company.name} is now: {new_status.replace('_', ' ').title()}"
+    )
 
     notification = Notification.objects.create(
         recipient=application.applicant,
         notification_type="application_status",
         title=title,
         message=message,
-        data={"application_id": application_id, "job_id": application.job_id, "status": new_status},
+        data={"application_id": str(application_id), "job_id": str(application.job_id), "status": new_status},
     )
 
-    _push_to_ws(
-        f"notifications_{application.applicant_id}",
-        {
-            "type": "notification_message",
-            "notification": {
-                "id": notification.id,
-                "type": notification.notification_type,
-                "title": notification.title,
-                "message": notification.message,
-                "data": notification.data,
-                "created_at": notification.created_at.isoformat(),
-            },
-        },
-    )
+    _push_to_ws(f"notifications_{application.applicant_id}", _ws_payload(notification))
+
+    # Email the seeker
+    try:
+        send_status_update_email(
+            seeker_email=application.applicant.email,
+            seeker_name=application.applicant.get_full_name(),
+            job_title=application.job.title,
+            company_name=application.job.company.name,
+            new_status=new_status,
+        )
+    except Exception:
+        pass
 
 
 @shared_task
 def send_new_application_notification(application_id):
     from .models import Notification
     from apps.applications.models import Application
+    from core.email import send_application_received_email
 
     try:
-        application = Application.objects.select_related("applicant", "job__recruiter", "job__company").get(id=application_id)
+        application = Application.objects.select_related(
+            "applicant", "job", "job__recruiter", "job__company"
+        ).get(id=application_id)
     except Application.DoesNotExist:
         return
 
@@ -83,20 +105,53 @@ def send_new_application_notification(application_id):
         notification_type="new_application",
         title="New Application Received",
         message=f"{application.applicant.get_full_name()} applied to {application.job.title}",
-        data={"application_id": application_id, "job_id": application.job_id},
+        data={"application_id": str(application_id), "job_id": str(application.job_id)},
     )
 
-    _push_to_ws(
-        f"notifications_{application.job.recruiter_id}",
-        {
-            "type": "notification_message",
-            "notification": {
-                "id": notification.id,
-                "type": notification.notification_type,
-                "title": notification.title,
-                "message": notification.message,
-                "data": notification.data,
-                "created_at": notification.created_at.isoformat(),
-            },
-        },
+    _push_to_ws(f"notifications_{application.job.recruiter_id}", _ws_payload(notification))
+
+    # Email the recruiter
+    try:
+        send_application_received_email(
+            recruiter_email=application.job.recruiter.email,
+            recruiter_name=application.job.recruiter.get_full_name(),
+            applicant_name=application.applicant.get_full_name(),
+            job_title=application.job.title,
+        )
+    except Exception:
+        pass
+
+
+@shared_task
+def send_withdrawal_notification(application_id):
+    from .models import Notification
+    from apps.applications.models import Application
+    from core.email import send_withdrawal_email
+
+    try:
+        application = Application.objects.select_related(
+            "applicant", "job", "job__recruiter", "job__company"
+        ).get(id=application_id)
+    except Application.DoesNotExist:
+        return
+
+    notification = Notification.objects.create(
+        recipient=application.job.recruiter,
+        notification_type="application_withdrawn",
+        title="Application Withdrawn",
+        message=f"{application.applicant.get_full_name()} withdrew their application for {application.job.title}",
+        data={"application_id": str(application_id), "job_id": str(application.job_id)},
     )
+
+    _push_to_ws(f"notifications_{application.job.recruiter_id}", _ws_payload(notification))
+
+    # Email the recruiter
+    try:
+        send_withdrawal_email(
+            recruiter_email=application.job.recruiter.email,
+            recruiter_name=application.job.recruiter.get_full_name(),
+            applicant_name=application.applicant.get_full_name(),
+            job_title=application.job.title,
+        )
+    except Exception:
+        pass

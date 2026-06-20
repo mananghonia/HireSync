@@ -15,6 +15,14 @@ from .serializers import (
 )
 
 
+def _fire(task_name, *args):
+    try:
+        from apps.notifications import tasks as t
+        getattr(t, task_name).delay(*args)
+    except Exception:
+        pass
+
+
 class SeekerApplicationViewSet(viewsets.ModelViewSet):
     """Seeker applies to jobs, views own applications, withdraws."""
     permission_classes = [IsJobSeeker]
@@ -50,6 +58,7 @@ class SeekerApplicationViewSet(viewsets.ModelViewSet):
                     changed_by=request.user,
                     note="Re-applied after withdrawal",
                 )
+                _fire("send_new_application_notification", str(existing.id))
                 serializer = ApplicationSeekerSerializer(existing, context={"request": request})
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response(
@@ -66,6 +75,7 @@ class SeekerApplicationViewSet(viewsets.ModelViewSet):
             new_status="applied",
             changed_by=request.user,
         )
+        _fire("send_new_application_notification", str(application.id))
         out = ApplicationSeekerSerializer(application, context={"request": request})
         return Response(out.data, status=status.HTTP_201_CREATED)
 
@@ -83,6 +93,7 @@ class SeekerApplicationViewSet(viewsets.ModelViewSet):
             new_status="withdrawn",
             changed_by=request.user,
         )
+        _fire("send_withdrawal_notification", str(application.id))
         return Response({"detail": "Application withdrawn."})
 
 
@@ -127,11 +138,7 @@ class RecruiterApplicationViewSet(viewsets.ReadOnlyModelViewSet):
             note=note,
         )
 
-        try:
-            from apps.notifications.tasks import send_application_status_notification
-            send_application_status_notification.delay(str(application.id), new_status)
-        except Exception:
-            pass
+        _fire("send_application_status_notification", str(application.id), new_status)
 
         return Response(ApplicationRecruiterSerializer(application, context={"request": request}).data)
 
