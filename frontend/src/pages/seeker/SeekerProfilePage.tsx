@@ -1,13 +1,14 @@
-import { useEffect } from "react";
+import { useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import { User, Upload } from "lucide-react";
+import { User, Upload, FileText, Trash2, ExternalLink } from "lucide-react";
 import api from "../../lib/axios";
 
 export default function SeekerProfilePage() {
   const qc = useQueryClient();
   const { register, handleSubmit, reset } = useForm();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: profile } = useQuery({
     queryKey: ["seeker-profile"],
@@ -23,6 +24,37 @@ export default function SeekerProfilePage() {
     },
     onError: () => toast.error("Failed to update profile."),
   });
+
+  const resumeMutation = useMutation({
+    mutationFn: (file: File) => {
+      const fd = new FormData();
+      fd.append("resume", file);
+      return api.patch("/profiles/seeker/", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Resume uploaded!");
+      qc.invalidateQueries({ queryKey: ["seeker-profile"] });
+    },
+    onError: () => toast.error("Upload failed. Only PDF allowed."),
+  });
+
+  const deleteResumeMutation = useMutation({
+    mutationFn: () => api.patch("/profiles/seeker/", { resume: null }),
+    onSuccess: () => {
+      toast.success("Resume removed.");
+      qc.invalidateQueries({ queryKey: ["seeker-profile"] });
+    },
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") { toast.error("Only PDF files allowed."); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("File too large. Max 5MB."); return; }
+    resumeMutation.mutate(file);
+  };
 
   return (
     <div className="max-w-2xl">
@@ -94,15 +126,53 @@ export default function SeekerProfilePage() {
 
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Upload className="w-4 h-4" /> Resume
+          <FileText className="w-4 h-4" /> Resume
         </h2>
+
         {profile?.resume ? (
-          <div className="flex items-center gap-3">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm text-gray-700">{profile.resume_filename || "Resume.pdf"}</div>
-            <a href={profile.resume} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-600 hover:underline">View</a>
+          <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-red-100 rounded-lg flex items-center justify-center">
+                <FileText className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">{profile.resume_filename || "Resume.pdf"}</p>
+                <p className="text-xs text-gray-400">PDF · uploaded</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <a href={profile.resume} target="_blank" rel="noopener noreferrer"
+                className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition" title="View">
+                <ExternalLink className="w-4 h-4" />
+              </a>
+              <button onClick={() => deleteResumeMutation.mutate()}
+                disabled={deleteResumeMutation.isPending}
+                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition" title="Remove">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ) : (
-          <p className="text-sm text-gray-500">No resume uploaded yet.</p>
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-primary-400 hover:bg-primary-50 transition group">
+            <Upload className="w-8 h-8 text-gray-400 group-hover:text-primary-500 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-600 group-hover:text-primary-600">
+              {resumeMutation.isPending ? "Uploading..." : "Click to upload your resume"}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">PDF only · Max 5MB</p>
+          </div>
+        )}
+
+        <input ref={fileInputRef} type="file" accept=".pdf,application/pdf"
+          className="hidden" onChange={handleFileChange} />
+
+        {profile?.resume && (
+          <button onClick={() => fileInputRef.current?.click()}
+            disabled={resumeMutation.isPending}
+            className="mt-3 text-xs text-primary-600 hover:underline disabled:opacity-50">
+            {resumeMutation.isPending ? "Uploading..." : "Replace resume"}
+          </button>
         )}
       </div>
     </div>

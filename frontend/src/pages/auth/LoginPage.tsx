@@ -43,7 +43,10 @@ export default function LoginPage() {
   const handleAuth = (data: { user: any; access: string; refresh: string }) => {
     dispatch(setCredentials({ user: data.user, tokens: { access: data.access, refresh: data.refresh } }));
     toast.success(`Welcome, ${data.user.first_name}!`);
-    navigate(data.user.role === "recruiter" ? "/recruiter/dashboard" : "/dashboard");
+    const dest = data.user.role === "admin" ? "/admin"
+      : data.user.role === "recruiter" ? "/recruiter/dashboard"
+      : "/dashboard";
+    navigate(dest);
   };
 
   const mutation = useMutation({

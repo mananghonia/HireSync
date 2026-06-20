@@ -27,6 +27,9 @@ import ManageJobsPage from "./pages/recruiter/ManageJobsPage";
 import ApplicantsPage from "./pages/recruiter/ApplicantsPage";
 import AnalyticsDashboard from "./pages/recruiter/AnalyticsDashboard";
 
+// Admin pages
+import AdminDashboard from "./pages/admin/AdminDashboard";
+
 // Shared pages
 import MessagesPage from "./pages/MessagesPage";
 import NotificationsPage from "./pages/NotificationsPage";
@@ -91,6 +94,13 @@ export default function App() {
         <Route path="/recruiter/analytics" element={
           <ProtectedRoute role="recruiter">
             <Layout><AnalyticsDashboard /></Layout>
+          </ProtectedRoute>
+        } />
+
+        {/* Admin routes */}
+        <Route path="/admin" element={
+          <ProtectedRoute role="admin">
+            <Layout><AdminDashboard /></Layout>
           </ProtectedRoute>
         } />
 

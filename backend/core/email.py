@@ -16,7 +16,7 @@ def _send(subject: str, html: str, to_email: str, to_name: str = "") -> bool:
             "content-type": "application/json",
         },
         json={
-            "sender": {"name": "HireSync", "email": "mananghonia@gmail.com"},
+            "sender": {"name": "HireSync", "email": "maddy748496@gmail.com"},
             "to": [{"email": to_email, "name": to_name or to_email}],
             "subject": subject,
             "htmlContent": html,

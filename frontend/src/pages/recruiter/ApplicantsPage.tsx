@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { User, ChevronDown } from "lucide-react";
+import { User, FileText, ExternalLink } from "lucide-react";
 import api from "../../lib/axios";
 
 const PIPELINE_STAGES = ["applied", "viewed", "shortlisted", "interview_scheduled", "interviewed", "offer_made", "hired", "rejected"];
@@ -65,6 +65,12 @@ export default function ApplicantsPage() {
                     <div className="text-xs text-primary-600 mt-0.5">
                       {app.skill_match_score}% skill match
                     </div>
+                  )}
+                  {app.resume_snapshot && (
+                    <a href={app.resume_snapshot} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline mt-0.5">
+                      <FileText className="w-3 h-3" /> View Resume
+                    </a>
                   )}
                 </div>
               </div>

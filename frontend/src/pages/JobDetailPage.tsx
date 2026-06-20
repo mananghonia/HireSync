@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { MapPin, Briefcase, DollarSign, Calendar, Users, BookmarkPlus, Send } from "lucide-react";
+import { MapPin, Briefcase, DollarSign, Calendar, Users, BookmarkPlus, Send, FileText, Upload, X } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "../lib/axios";
 import { useAuth } from "../hooks/useAuth";
@@ -11,6 +11,15 @@ export default function JobDetailPage() {
   const { isAuthenticated, isSeeker } = useAuth();
   const [coverLetter, setCoverLetter] = useState("");
   const [showApplyForm, setShowApplyForm] = useState(false);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [useProfileResume, setUseProfileResume] = useState(true);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const { data: seekerProfile } = useQuery({
+    queryKey: ["seeker-profile"],
+    queryFn: () => api.get("/profiles/seeker/").then(r => r.data),
+    enabled: isAuthenticated && isSeeker,
+  });
 
   const { data: job, isLoading, refetch } = useQuery({
     queryKey: ["job", id],
@@ -18,10 +27,22 @@ export default function JobDetailPage() {
   });
 
   const applyMutation = useMutation({
-    mutationFn: () => api.post("/applications/my/", { job: id, cover_letter: coverLetter }),
+    mutationFn: () => {
+      const fd = new FormData();
+      fd.append("job", id!);
+      fd.append("cover_letter", coverLetter);
+      if (!useProfileResume && resumeFile) {
+        fd.append("resume_snapshot", resumeFile);
+      }
+      return api.post("/applications/my/", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+    },
     onSuccess: () => {
       toast.success("Application submitted!");
       setShowApplyForm(false);
+      setResumeFile(null);
+      setUseProfileResume(true);
       refetch();
     },
     onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to apply."),
@@ -83,9 +104,54 @@ export default function JobDetailPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               {job.application_status === "withdrawn" ? "Re-apply for this position" : "Apply for this position"}
             </h2>
+
+            {/* Resume section */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Resume</label>
+              {seekerProfile?.resume && (
+                <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer mb-2 transition ${useProfileResume ? "border-primary-500 bg-primary-50" : "border-gray-200"}`}>
+                  <input type="radio" checked={useProfileResume} onChange={() => { setUseProfileResume(true); setResumeFile(null); }} className="text-primary-600" />
+                  <FileText className="w-4 h-4 text-red-500" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{seekerProfile.resume_filename || "Profile Resume"}</p>
+                    <p className="text-xs text-gray-400">From your profile</p>
+                  </div>
+                </label>
+              )}
+              <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition ${!useProfileResume ? "border-primary-500 bg-primary-50" : "border-gray-200"}`}>
+                <input type="radio" checked={!useProfileResume} onChange={() => setUseProfileResume(false)} className="text-primary-600" />
+                <Upload className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-600">Upload a different resume (PDF)</span>
+              </label>
+              {!useProfileResume && (
+                <div className="mt-2 ml-8">
+                  {resumeFile ? (
+                    <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                      <FileText className="w-4 h-4 text-green-600" />
+                      <span className="text-sm text-green-700 flex-1">{resumeFile.name}</span>
+                      <button onClick={() => setResumeFile(null)} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
+                    </div>
+                  ) : (
+                    <button onClick={() => fileRef.current?.click()}
+                      className="text-sm text-primary-600 hover:underline border border-dashed border-primary-300 px-4 py-2 rounded-lg w-full">
+                      Click to select PDF
+                    </button>
+                  )}
+                  <input ref={fileRef} type="file" accept=".pdf,application/pdf" className="hidden"
+                    onChange={e => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      if (f.type !== "application/pdf") { toast.error("Only PDF allowed"); return; }
+                      if (f.size > 5 * 1024 * 1024) { toast.error("Max 5MB"); return; }
+                      setResumeFile(f);
+                    }} />
+                </div>
+              )}
+            </div>
+
             <textarea value={coverLetter} onChange={(e) => setCoverLetter(e.target.value)}
               placeholder="Write a cover letter (optional)..."
-              rows={6}
+              rows={5}
               className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none mb-4" />
             <div className="flex gap-3">
               <button onClick={() => applyMutation.mutate()} disabled={applyMutation.isPending}
@@ -93,7 +159,8 @@ export default function JobDetailPage() {
                 <Send className="w-4 h-4" />
                 {applyMutation.isPending ? "Submitting..." : "Submit Application"}
               </button>
-              <button onClick={() => setShowApplyForm(false)} className="border border-gray-300 px-4 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+              <button onClick={() => { setShowApplyForm(false); setResumeFile(null); setUseProfileResume(true); }}
+                className="border border-gray-300 px-4 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
                 Cancel
               </button>
             </div>
