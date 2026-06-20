@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Bell, MessageCircle, LogOut, User, Briefcase,
@@ -9,8 +9,6 @@ import {
 } from "lucide-react";
 import { logout } from "../../features/auth/authSlice";
 import { useAuth } from "../../hooks/useAuth";
-import { setUnreadCount } from "../../features/notifications/notificationsSlice";
-import type { RootState } from "../../app/store";
 import api from "../../lib/axios";
 
 const TYPE_ICONS: Record<string, string> = {
@@ -22,9 +20,8 @@ const TYPE_ICONS: Record<string, string> = {
   general: "🔔",
 };
 
-function NotificationDropdown({ onClose }: { onClose: () => void }) {
+function NotificationDropdown({ onClose, onCountChange }: { onClose: () => void; onCountChange: (n: number) => void }) {
   const qc = useQueryClient();
-  const dispatch = useDispatch();
 
   const { data, isLoading } = useQuery({
     queryKey: ["notifications-popup"],
@@ -37,7 +34,8 @@ function NotificationDropdown({ onClose }: { onClose: () => void }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notifications-popup"] });
       qc.invalidateQueries({ queryKey: ["notifications"] });
-      dispatch(setUnreadCount(0));
+      qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
+      onCountChange(0);
     },
   });
 
@@ -45,6 +43,7 @@ function NotificationDropdown({ onClose }: { onClose: () => void }) {
     mutationFn: (id: string) => api.post(`/notifications/${id}/read/`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notifications-popup"] });
+      qc.invalidateQueries({ queryKey: ["notif-unread-count"] });
     },
   });
 
@@ -127,7 +126,6 @@ function NotificationDropdown({ onClose }: { onClose: () => void }) {
 
 export default function Navbar() {
   const { user, isAuthenticated, isSeeker, isRecruiter } = useAuth();
-  const unreadCount = useSelector((state: RootState) => state.notifications.unreadCount);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -135,6 +133,16 @@ export default function Navbar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  // Fetch unread count from REST API — no WebSocket dependency
+  const { data: countData, refetch: refetchCount } = useQuery({
+    queryKey: ["notif-unread-count"],
+    queryFn: () => api.get("/notifications/unread-count/").then(r => r.data.unread_count as number),
+    enabled: isAuthenticated,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+  });
+  const unreadCount = countData ?? 0;
 
   // Close notification dropdown on outside click
   useEffect(() => {
@@ -236,7 +244,10 @@ export default function Navbar() {
                   </button>
 
                   {notifOpen && (
-                    <NotificationDropdown onClose={() => setNotifOpen(false)} />
+                    <NotificationDropdown
+                      onClose={() => setNotifOpen(false)}
+                      onCountChange={() => refetchCount()}
+                    />
                   )}
                 </div>
 
