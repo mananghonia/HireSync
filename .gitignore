@@ -39,3 +39,7 @@ frontend/.env.local
 # OS
 .DS_Store
 Thumbs.db
+backend/launch_temp.bat
+backend/check_server.py
+backend/reset_admin.py
+backend/create_admin.py
