@@ -12,10 +12,13 @@ class NotificationListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = Notification.objects.filter(recipient=self.request.user)
+        qs = Notification.objects.filter(recipient=self.request.user).order_by("-created_at")
         is_read = self.request.query_params.get("is_read")
         if is_read is not None:
             qs = qs.filter(is_read=is_read.lower() == "true")
+        limit = self.request.query_params.get("limit")
+        if limit and limit.isdigit():
+            qs = qs[:int(limit)]
         return qs
 
 
