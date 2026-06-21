@@ -33,20 +33,38 @@ class ChatConsumer(AsyncWebsocketConsumer):
         user = self.scope["user"]
         message = await self.save_message(user, self.conversation_id, content)
 
+        msg_payload = {
+            "id": str(message.id),
+            "sender_id": str(user.id),
+            "sender_name": user.get_full_name(),
+            "content": message.content,
+            "sent_at": message.sent_at.isoformat(),
+            "is_read": False,
+        }
+
+        # Broadcast to everyone in the chat room
         await self.channel_layer.group_send(
             self.group_name,
-            {
-                "type": "chat_message",
-                "message": {
-                    "id": message.id,
-                    "sender_id": str(user.id),
-                    "sender_name": user.get_full_name(),
-                    "content": message.content,
-                    "sent_at": message.sent_at.isoformat(),
-                    "is_read": False,
-                },
-            },
+            {"type": "chat_message", "message": msg_payload},
         )
+
+        # Push popup notification to the other participant's notification channel
+        other_id = await self.get_other_participant_id(user, self.conversation_id)
+        if other_id:
+            await self.channel_layer.group_send(
+                f"notifications_{other_id}",
+                {
+                    "type": "notification_message",
+                    "notification": {
+                        "id": str(message.id),
+                        "type": "new_message",
+                        "title": f"New message from {user.get_full_name()}",
+                        "message": content[:80] + ("…" if len(content) > 80 else ""),
+                        "data": {"conversation_id": str(self.conversation_id)},
+                        "created_at": message.sent_at.isoformat(),
+                    },
+                },
+            )
 
     async def chat_message(self, event):
         await self.send(json.dumps({"type": "message", "message": event["message"]}))
@@ -55,6 +73,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def user_in_conversation(self, user, conversation_id):
         from .models import Conversation
         return Conversation.objects.filter(id=conversation_id, participants=user).exists()
+
+    @database_sync_to_async
+    def get_other_participant_id(self, sender, conversation_id):
+        from .models import Conversation
+        try:
+            convo = Conversation.objects.get(id=conversation_id)
+            others = [p for p in convo.participants.all() if str(p.id) != str(sender.id)]
+            return str(others[0].id) if others else None
+        except Exception:
+            return None
 
     @database_sync_to_async
     def save_message(self, user, conversation_id, content):
