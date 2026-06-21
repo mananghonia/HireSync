@@ -15,6 +15,123 @@ from .serializers import (
 )
 
 
+def _generate_interview_questions(application) -> list:
+    """
+    Use Claude to generate tailored interview questions for an applicant.
+    Returns a list of {name, questions} category dicts.
+    """
+    import io, json
+    from django.conf import settings
+
+    api_key = getattr(settings, "ANTHROPIC_API_KEY", "")
+
+    # --- Extract resume text ---
+    resume_text = ""
+    try:
+        resume_file = application.resume_snapshot
+        if resume_file:
+            name = (resume_file.name or "").lower()
+            resume_file.seek(0)
+            raw = resume_file.read()
+            resume_file.seek(0)
+            if name.endswith(".pdf"):
+                import pdfplumber
+                with pdfplumber.open(io.BytesIO(raw)) as pdf:
+                    resume_text = " ".join(p.extract_text() or "" for p in pdf.pages)
+            elif name.endswith((".docx", ".doc")):
+                import docx
+                doc = docx.Document(io.BytesIO(raw))
+                resume_text = " ".join(p.text for p in doc.paragraphs)
+            else:
+                resume_text = raw.decode("utf-8", errors="ignore")
+    except Exception:
+        pass
+
+    job = application.job
+    skills = ", ".join(s.name for s in job.skills.all()) or "Not specified"
+
+    prompt = f"""You are an expert technical interviewer. Generate tailored interview questions for this candidate.
+
+JOB DETAILS:
+Title: {job.title}
+Description: {job.description[:1500]}
+Requirements: {job.requirements[:800]}
+Required Skills: {skills}
+Experience Level: {job.experience_level or "Not specified"}
+
+CANDIDATE RESUME:
+{resume_text[:3000] if resume_text else "Resume not available — base questions on the job requirements."}
+
+Generate exactly 12 interview questions in 4 categories:
+1. Technical Skills (3 questions specific to their tech stack and the job requirements)
+2. Problem Solving (3 questions with real scenario-based challenges relevant to this role)
+3. Behavioral (3 STAR-method questions relevant to this specific role)
+4. Role Fit (3 questions about motivation, culture, and goals specific to this position)
+
+Return ONLY valid JSON in this exact format:
+{{
+  "categories": [
+    {{
+      "name": "Technical Skills",
+      "questions": ["question 1", "question 2", "question 3"]
+    }},
+    {{
+      "name": "Problem Solving",
+      "questions": ["question 1", "question 2", "question 3"]
+    }},
+    {{
+      "name": "Behavioral",
+      "questions": ["question 1", "question 2", "question 3"]
+    }},
+    {{
+      "name": "Role Fit",
+      "questions": ["question 1", "question 2", "question 3"]
+    }}
+  ]
+}}"""
+
+    if api_key:
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=api_key)
+            msg = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = msg.content[0].text.strip()
+            start, end = raw.find("{"), raw.rfind("}") + 1
+            if start >= 0 and end > start:
+                data = json.loads(raw[start:end])
+                return data.get("categories", [])
+        except Exception:
+            pass
+
+    # Fallback: generic questions based on job title + skills
+    return [
+        {"name": "Technical Skills", "questions": [
+            f"Walk me through your experience with {skills.split(',')[0].strip() if skills != 'Not specified' else 'the core technologies for this role'}.",
+            f"How have you approached technical challenges in previous {job.title} roles?",
+            "Describe a technically complex project you've led or contributed to significantly.",
+        ]},
+        {"name": "Problem Solving", "questions": [
+            "Describe a time you had to debug a critical issue under time pressure. What was your approach?",
+            "How do you prioritize when you have multiple urgent tasks competing for your attention?",
+            "Tell me about a time you had to learn a new technology quickly for a project.",
+        ]},
+        {"name": "Behavioral", "questions": [
+            "Tell me about a time you disagreed with a team decision. How did you handle it?",
+            "Describe a project where you had to collaborate with people from different backgrounds.",
+            "Give an example of when you received critical feedback. How did you respond?",
+        ]},
+        {"name": "Role Fit", "questions": [
+            f"Why are you interested in this {job.title} position specifically?",
+            "Where do you see your career heading in the next 3 years?",
+            "What does your ideal team culture look like?",
+        ]},
+    ]
+
+
 def _fire(task_name, *args):
     try:
         from apps.notifications import tasks as t
@@ -174,6 +291,12 @@ class RecruiterApplicationViewSet(viewsets.ReadOnlyModelViewSet):
         _fire("send_application_status_notification", str(application.id), new_status)
 
         return Response(ApplicationRecruiterSerializer(application, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def generate_questions(self, request, pk=None):
+        application = self.get_object()
+        questions = _generate_interview_questions(application)
+        return Response({"categories": questions})
 
     @action(detail=True, methods=["post"])
     def add_note(self, request, pk=None):
