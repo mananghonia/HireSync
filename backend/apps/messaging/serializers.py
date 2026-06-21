@@ -23,8 +23,9 @@ class ConversationSerializer(serializers.ModelSerializer):
 
     def get_other_participant(self, obj):
         user = self.context["request"].user
-        other = obj.get_other_participant(user)
-        return UserSerializer(other).data if other else None
+        # .exclude() on M2M can be unreliable on MongoDB — iterate instead
+        others = [p for p in obj.participants.all() if str(p.id) != str(user.id)]
+        return UserSerializer(others[0]).data if others else None
 
     def get_last_message(self, obj):
         msg = obj.messages.last()

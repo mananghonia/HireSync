@@ -15,7 +15,8 @@ class ConversationListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Conversation.objects.filter(participants=self.request.user)
+        # Simple single-filter M2M lookup — this one is supported by django-mongodb-backend
+        return Conversation.objects.filter(participants=self.request.user).order_by("-updated_at")
 
 
 class ConversationCreateView(generics.CreateAPIView):
@@ -31,12 +32,13 @@ class ConversationCreateView(generics.CreateAPIView):
         if other_user == request.user:
             return Response({"detail": "Cannot message yourself."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Return existing conversation or create new one
-        conversation = (
-            Conversation.objects.filter(participants=request.user)
-            .filter(participants=other_user)
-            .first()
-        )
+        # Find existing 1:1 conversation — chained M2M filter unreliable on MongoDB,
+        # so intersect participant sets in Python.
+        my_ids = set(str(c.id) for c in Conversation.objects.filter(participants=request.user))
+        their_ids = set(str(c.id) for c in Conversation.objects.filter(participants=other_user))
+        common = my_ids & their_ids
+
+        conversation = Conversation.objects.filter(id__in=list(common)).first() if common else None
 
         if not conversation:
             conversation = Conversation.objects.create()
