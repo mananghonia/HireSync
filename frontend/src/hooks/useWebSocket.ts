@@ -40,29 +40,19 @@ export function useNotificationSocket(isAuthenticated: boolean) {
 
         // Show a popup toast for new messages
         if (notif.type === "new_message") {
-          toast.custom(
-            (t) => (
-              <div
-                onClick={() => {
-                  window.location.href = `/messages?convo=${notif.data?.conversation_id}`;
-                  toast.dismiss(t.id);
-                }}
-                className={`cursor-pointer flex items-start gap-3 bg-white border border-gray-200 shadow-lg rounded-xl px-4 py-3 max-w-sm transition-all ${t.visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}`}
-              >
-                <div className="text-xl shrink-0">💬</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{notif.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{notif.message}</p>
-                </div>
-              </div>
-            ),
-            { duration: 5000, position: "bottom-right" }
+          const convoId = notif.data?.conversation_id;
+          toast(
+            `💬 ${notif.title}\n${notif.message}`,
+            {
+              duration: 5000,
+              position: "bottom-right",
+              style: { cursor: "pointer", maxWidth: "320px", whiteSpace: "pre-line" },
+              onClick: () => { window.location.href = `/messages?convo=${convoId}`; },
+            } as any
           );
-          // Also refresh conversation list
           qc.invalidateQueries({ queryKey: ["conversations"] });
         } else {
-          // Generic notification toast for application events
-          toast(notif.title, { icon: "🔔", duration: 4000, position: "bottom-right" });
+          toast(`🔔 ${notif.title}`, { duration: 4000, position: "bottom-right" });
         }
       }
     };
