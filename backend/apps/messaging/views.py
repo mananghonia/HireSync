@@ -19,13 +19,9 @@ class ConversationListView(generics.ListAPIView):
         me = self.request.user
         all_convos = Conversation.objects.filter(participants=me).order_by("-updated_at")
 
-        # Only return conversations that:
-        # 1. Have at least one message
-        # 2. The other participant has the opposite role (seeker ↔ recruiter)
+        # Only return conversations where the other participant has the opposite role (seeker ↔ recruiter)
         valid = []
         for convo in all_convos:
-            if not convo.messages.exists():
-                continue
             others = [p for p in convo.participants.all() if str(p.id) != str(me.id)]
             if others and (me.role, others[0].role) in ALLOWED_PAIRS:
                 valid.append(convo)

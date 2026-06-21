@@ -28,7 +28,14 @@ export default function ApplicationsPage() {
   const messageMutation = useMutation({
     mutationFn: (recruiterId: string) =>
       api.post("/messaging/conversations/start/", { user_id: recruiterId }).then((r) => r.data),
-    onSuccess: (convo) => navigate(`/messages?convo=${convo.id}`),
+    onSuccess: (convo) => {
+      qc.setQueryData(["conversations"], (prev: any[] | undefined) => {
+        const list = prev ?? [];
+        if (list.find((c: any) => c.id === convo.id)) return list;
+        return [convo, ...list];
+      });
+      navigate(`/messages?convo=${convo.id}`);
+    },
     onError: () => toast.error("Could not open conversation."),
   });
 
