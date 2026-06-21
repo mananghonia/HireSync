@@ -15,10 +15,11 @@ export function useNotificationSocket(isAuthenticated: boolean) {
     const token = localStorage.getItem("access_token");
     if (!token) return;
 
-    // Use relative WS path so Vite proxy handles it in dev;
-    // in production this connects directly to the same host.
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const wsUrl = `${proto}://${window.location.host}/ws/notifications/?token=${token}`;
+    // VITE_WS_URL is set in production (e.g. wss://hiresync.railway.app).
+    // In dev the Vite proxy handles /ws → localhost:8000.
+    const wsBase = import.meta.env.VITE_WS_URL
+      ?? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
+    const wsUrl = `${wsBase}/ws/notifications/?token=${token}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 

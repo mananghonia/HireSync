@@ -42,8 +42,9 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!activeConvo) return;
     const token = localStorage.getItem("access_token");
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${proto}://${window.location.host}/ws/chat/${activeConvo.id}/?token=${token}`);
+    const wsBase = import.meta.env.VITE_WS_URL
+      ?? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
+    const ws = new WebSocket(`${wsBase}/ws/chat/${activeConvo.id}/?token=${token}`);
     wsRef.current = ws;
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data);
