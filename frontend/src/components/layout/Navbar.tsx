@@ -50,7 +50,7 @@ function NotificationDropdown({ onClose, onCountChange }: { onClose: () => void;
   const unread = data?.filter((n: any) => !n.is_read) ?? [];
 
   return (
-    <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
+    <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-[9999] overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <span className="text-sm font-semibold text-gray-900">
@@ -133,6 +133,7 @@ export default function Navbar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   // Notification unread count
   const { data: countData, refetch: refetchCount } = useQuery({
@@ -154,16 +155,19 @@ export default function Navbar() {
   });
   const unreadMessages = (conversations as any[])?.reduce((sum: number, c: any) => sum + (c.unread_count ?? 0), 0) ?? 0;
 
-  // Close notification dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setNotifOpen(false);
       }
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
     }
-    if (notifOpen) document.addEventListener("mousedown", handler);
+    document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [notifOpen]);
+  }, []);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -244,7 +248,7 @@ export default function Navbar() {
                 </Link>
 
                 {/* Notification bell — dropdown */}
-                <div className="relative" ref={notifRef}>
+                <div className="relative z-[60]" ref={notifRef}>
                   <button
                     onClick={() => setNotifOpen(v => !v)}
                     className={`relative w-9 h-9 flex items-center justify-center rounded-lg transition-colors
@@ -267,7 +271,7 @@ export default function Navbar() {
                 </div>
 
                 {/* Profile dropdown */}
-                <div className="relative ml-1">
+                <div className="relative ml-1" ref={profileRef}>
                   <button
                     onClick={() => setProfileOpen(!profileOpen)}
                     className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200"
@@ -283,8 +287,7 @@ export default function Navbar() {
 
                   {profileOpen && (
                     <>
-                      <div className="fixed inset-0 z-10" onClick={() => setProfileOpen(false)} />
-                      <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1.5 z-20">
+                      <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1.5 z-[9999]">
                         <div className="px-4 py-2.5 border-b border-gray-100 mb-1">
                           <p className="text-sm font-semibold text-gray-900">{user?.first_name} {user?.last_name}</p>
                           <p className="text-xs text-gray-400 truncate">{user?.email}</p>
