@@ -41,16 +41,20 @@ export function useNotificationSocket(isAuthenticated: boolean) {
         // Show a popup toast for new messages
         if (notif.type === "new_message") {
           const convoId = notif.data?.conversation_id;
+          // Bump unread count on the conversation in cache so Navbar badge updates instantly
+          qc.setQueryData(["conversations"], (prev: any[]) =>
+            prev?.map((c: any) =>
+              c.id === convoId ? { ...c, unread_count: (c.unread_count ?? 0) + 1 } : c
+            )
+          );
           toast(
             `💬 ${notif.title}\n${notif.message}`,
             {
               duration: 5000,
               position: "bottom-right",
               style: { cursor: "pointer", maxWidth: "320px", whiteSpace: "pre-line" },
-              onClick: () => { window.location.href = `/messages?convo=${convoId}`; },
             } as any
           );
-          qc.invalidateQueries({ queryKey: ["conversations"] });
         } else {
           toast(`🔔 ${notif.title}`, { duration: 4000, position: "bottom-right" });
         }

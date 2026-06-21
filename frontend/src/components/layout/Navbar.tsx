@@ -134,7 +134,7 @@ export default function Navbar() {
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // Fetch unread count from REST API — no WebSocket dependency
+  // Notification unread count
   const { data: countData, refetch: refetchCount } = useQuery({
     queryKey: ["notif-unread-count"],
     queryFn: () => api.get("/notifications/unread-count/").then(r => r.data.unread_count as number),
@@ -143,6 +143,16 @@ export default function Navbar() {
     staleTime: 10_000,
   });
   const unreadCount = countData ?? 0;
+
+  // Message unread count (sum across all conversations)
+  const { data: conversations } = useQuery({
+    queryKey: ["conversations"],
+    queryFn: () => api.get("/messaging/conversations/").then(r => r.data.results ?? r.data),
+    enabled: isAuthenticated,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+  });
+  const unreadMessages = (conversations as any[])?.reduce((sum: number, c: any) => sum + (c.unread_count ?? 0), 0) ?? 0;
 
   // Close notification dropdown on outside click
   useEffect(() => {
@@ -226,6 +236,11 @@ export default function Navbar() {
                   className="relative w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:text-primary-600 hover:bg-primary-50 transition-colors"
                 >
                   <MessageCircle className="w-5 h-5" />
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 leading-none">
+                      +{unreadMessages > 99 ? "99" : unreadMessages}
+                    </span>
+                  )}
                 </Link>
 
                 {/* Notification bell — dropdown */}
