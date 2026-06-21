@@ -25,6 +25,7 @@ class Application(models.Model):
     cover_letter = models.TextField(blank=True)
     resume_snapshot = models.FileField(upload_to="applications/resumes/", blank=True, null=True)
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="applied")
+    interview_scheduled_at = models.DateTimeField(null=True, blank=True)
     applied_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

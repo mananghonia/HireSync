@@ -73,13 +73,27 @@ def send_application_status_notification(application_id, new_status):
 
     # Email the seeker
     try:
-        send_status_update_email(
-            seeker_email=application.applicant.email,
-            seeker_name=application.applicant.get_full_name(),
-            job_title=application.job.title,
-            company_name=application.job.company.name,
-            new_status=new_status,
-        )
+        if new_status == "interview_scheduled" and application.interview_scheduled_at:
+            from core.email import send_interview_scheduled_email
+            import zoneinfo
+            dt = application.interview_scheduled_at
+            # Format as readable string e.g. "Monday, 23 June 2026 at 10:30 AM"
+            dt_str = dt.strftime("%A, %d %B %Y at %I:%M %p UTC")
+            send_interview_scheduled_email(
+                seeker_email=application.applicant.email,
+                seeker_name=application.applicant.get_full_name(),
+                job_title=application.job.title,
+                company_name=application.job.company.name,
+                interview_dt=dt_str,
+            )
+        else:
+            send_status_update_email(
+                seeker_email=application.applicant.email,
+                seeker_name=application.applicant.get_full_name(),
+                job_title=application.job.title,
+                company_name=application.job.company.name,
+                new_status=new_status,
+            )
     except Exception:
         pass
 

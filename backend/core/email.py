@@ -79,6 +79,25 @@ def send_withdrawal_email(recruiter_email: str, recruiter_name: str,
     return _send(f"Application withdrawn — {job_title}", html, recruiter_email, recruiter_name)
 
 
+def send_interview_scheduled_email(seeker_email: str, seeker_name: str,
+                                    job_title: str, company_name: str,
+                                    interview_dt: str) -> bool:
+    html = _base_html(f"""
+      <p style="color:#374151;font-size:15px">Hi {seeker_name or 'there'},</p>
+      <p style="color:#374151;font-size:15px">
+        Great news! Your interview for <strong>{job_title}</strong> at <strong>{company_name}</strong> has been scheduled.
+      </p>
+      <div style="background:#faf5ff;border:1.5px solid #c4b5fd;border-radius:10px;padding:24px;margin:24px 0;text-align:center">
+        <p style="font-size:32px;margin:0">📅</p>
+        <p style="font-size:20px;font-weight:700;color:#7c3aed;margin:10px 0 4px">Interview Scheduled</p>
+        <p style="font-size:16px;color:#374151;margin:0;font-weight:600">{interview_dt}</p>
+      </div>
+      <p style="color:#374151;font-size:14px">Please be available at the scheduled time. Log in to HireSync for more details.</p>
+      <p style="color:#6b7280;font-size:13px">Good luck! 🍀</p>
+    """)
+    return _send(f"Interview Scheduled — {job_title} at {company_name}", html, seeker_email, seeker_name)
+
+
 def send_status_update_email(seeker_email: str, seeker_name: str,
                               job_title: str, company_name: str, new_status: str) -> bool:
     status_labels = {

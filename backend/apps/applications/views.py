@@ -276,8 +276,11 @@ class RecruiterApplicationViewSet(viewsets.ReadOnlyModelViewSet):
         old_status = application.status
         new_status = serializer.validated_data["status"]
         note = serializer.validated_data.get("note", "")
+        interview_at = serializer.validated_data.get("interview_scheduled_at")
 
         application.status = new_status
+        if new_status == "interview_scheduled" and interview_at:
+            application.interview_scheduled_at = interview_at
         application.save()
 
         ApplicationStatusHistory.objects.create(

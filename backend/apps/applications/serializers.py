@@ -45,7 +45,7 @@ class ApplicationSeekerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Application
-        fields = ["id", "job", "cover_letter", "resume_snapshot", "status", "applied_at", "updated_at", "status_history"]
+        fields = ["id", "job", "cover_letter", "resume_snapshot", "status", "interview_scheduled_at", "applied_at", "updated_at", "status_history"]
         read_only_fields = ["id", "status", "applied_at", "updated_at"]
 
 
@@ -60,7 +60,7 @@ class ApplicationRecruiterSerializer(serializers.ModelSerializer):
         model = Application
         fields = [
             "id", "applicant", "cover_letter", "resume_snapshot",
-            "status", "applied_at", "updated_at",
+            "status", "interview_scheduled_at", "applied_at", "updated_at",
             "status_history", "recruiter_notes", "skill_match_score",
         ]
 
@@ -80,3 +80,4 @@ class ApplicationRecruiterSerializer(serializers.ModelSerializer):
 class UpdateApplicationStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Application.STATUS_CHOICES)
     note = serializers.CharField(required=False, allow_blank=True)
+    interview_scheduled_at = serializers.DateTimeField(required=False, allow_null=True)

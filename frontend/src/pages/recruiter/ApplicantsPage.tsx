@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import toast from "react-hot-toast";
-import { User, FileText, MessageCircle, Wand2, X, Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { User, FileText, MessageCircle, Wand2, X, Copy, Check, ChevronDown, ChevronUp, Calendar } from "lucide-react";
 import api from "../../lib/axios";
 
 const PIPELINE_STAGES = ["applied", "viewed", "shortlisted", "interview_scheduled", "interviewed", "offer_made", "hired", "rejected"];
@@ -24,6 +24,64 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Behavioral": "bg-amber-50 border-amber-200 text-amber-700",
   "Role Fit": "bg-emerald-50 border-emerald-200 text-emerald-700",
 };
+
+function InterviewModal({ app, onConfirm, onClose }: {
+  app: any;
+  onConfirm: (isoDateTime: string) => void;
+  onClose: () => void;
+}) {
+  const minDateTime = new Date();
+  minDateTime.setMinutes(minDateTime.getMinutes() - minDateTime.getTimezoneOffset());
+  const minStr = minDateTime.toISOString().slice(0, 16);
+
+  const [value, setValue] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100">
+          <div className="flex items-center gap-2 mb-1">
+            <Calendar className="w-5 h-5 text-violet-600" />
+            <h2 className="font-semibold text-gray-900">Schedule Interview</h2>
+          </div>
+          <p className="text-xs text-gray-500">
+            {app.applicant?.full_name} · {app.job?.title || ""}
+          </p>
+        </div>
+
+        <div className="px-6 py-5">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Interview date & time
+          </label>
+          <input
+            type="datetime-local"
+            min={minStr}
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+          />
+          <p className="text-xs text-gray-400 mt-2">An email will be sent to the applicant with this date and time.</p>
+        </div>
+
+        <div className="px-6 pb-5 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 border border-gray-300 text-gray-700 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-50 transition-colors">
+            Cancel
+          </button>
+          <button
+            disabled={!value}
+            onClick={() => value && onConfirm(new Date(value).toISOString())}
+            className="flex-1 bg-violet-600 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors">
+            Schedule & Notify
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function QuestionPanel({ app, onClose }: { app: any; onClose: () => void }) {
   const [categories, setCategories] = useState<any[]>([]);
@@ -182,6 +240,8 @@ export default function ApplicantsPage() {
   const navigate = useNavigate();
   const [filterStatus, setFilterStatus] = useState("");
   const [questionApp, setQuestionApp] = useState<any>(null);
+  const [interviewApp, setInterviewApp] = useState<any>(null);
+  const pendingSelectRef = useRef<HTMLSelectElement | null>(null);
 
   const messageMutation = useMutation({
     mutationFn: (userId: string) =>
@@ -203,13 +263,42 @@ export default function ApplicantsPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status, note }: { id: string; status: string; note?: string }) =>
-      api.patch(`/applications/manage/${id}/update_status/`, { status, note }),
-    onSuccess: () => {
-      toast.success("Status updated.");
+    mutationFn: ({ id, status, note, interview_scheduled_at }: {
+      id: string; status: string; note?: string; interview_scheduled_at?: string
+    }) => api.patch(`/applications/manage/${id}/update_status/`, { status, note, interview_scheduled_at }),
+    onSuccess: (_, vars) => {
+      toast.success(vars.status === "interview_scheduled" ? "Interview scheduled — email sent!" : "Status updated.");
       qc.invalidateQueries({ queryKey: ["applicants"] });
     },
   });
+
+  const handleStatusChange = (app: any, newStatus: string, el: HTMLSelectElement) => {
+    if (newStatus === "interview_scheduled") {
+      pendingSelectRef.current = el;
+      setInterviewApp(app);
+    } else {
+      statusMutation.mutate({ id: app.id, status: newStatus });
+    }
+  };
+
+  const confirmInterview = (isoDateTime: string) => {
+    if (!interviewApp) return;
+    statusMutation.mutate({
+      id: interviewApp.id,
+      status: "interview_scheduled",
+      interview_scheduled_at: isoDateTime,
+    });
+    setInterviewApp(null);
+  };
+
+  const cancelInterview = () => {
+    // Revert the select back to previous value
+    if (pendingSelectRef.current) {
+      const app = data?.find((a: any) => a.id === interviewApp?.id);
+      if (app && pendingSelectRef.current) pendingSelectRef.current.value = app.status;
+    }
+    setInterviewApp(null);
+  };
 
   return (
     <div>
@@ -270,8 +359,8 @@ export default function ApplicantsPage() {
                 </span>
 
                 <select
-                  value={app.status}
-                  onChange={(e) => statusMutation.mutate({ id: app.id, status: e.target.value })}
+                  defaultValue={app.status}
+                  onChange={(e) => handleStatusChange(app, e.target.value, e.currentTarget)}
                   className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary-500">
                   {PIPELINE_STAGES.map((s) => (
                     <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
@@ -284,6 +373,15 @@ export default function ApplicantsPage() {
             <div className="text-center py-16 text-gray-400 text-sm">No applicants yet.</div>
           )}
         </div>
+      )}
+
+      {/* Interview scheduling modal */}
+      {interviewApp && (
+        <InterviewModal
+          app={interviewApp}
+          onConfirm={confirmInterview}
+          onClose={cancelInterview}
+        />
       )}
 
       {/* Interview question slide-over */}
