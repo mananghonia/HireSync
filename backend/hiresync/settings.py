@@ -189,6 +189,8 @@ if USE_S3:
     AWS_S3_FILE_OVERWRITE = False
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 
+ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")
+
 # API docs
 SPECTACULAR_SETTINGS = {
     "TITLE": "HireSync API",
