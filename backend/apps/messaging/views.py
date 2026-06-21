@@ -2,12 +2,13 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
-from django.db.models import Q
 
 from .models import Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer
 
 User = get_user_model()
+
+ALLOWED_PAIRS = {("seeker", "recruiter"), ("recruiter", "seeker")}
 
 
 class ConversationListView(generics.ListAPIView):
@@ -15,8 +16,25 @@ class ConversationListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Simple single-filter M2M lookup — this one is supported by django-mongodb-backend
-        return Conversation.objects.filter(participants=self.request.user).order_by("-updated_at")
+        me = self.request.user
+        all_convos = Conversation.objects.filter(participants=me).order_by("-updated_at")
+
+        # Only return conversations that:
+        # 1. Have at least one message
+        # 2. The other participant has the opposite role (seeker ↔ recruiter)
+        valid = []
+        for convo in all_convos:
+            if not convo.messages.exists():
+                continue
+            others = [p for p in convo.participants.all() if str(p.id) != str(me.id)]
+            if others and (me.role, others[0].role) in ALLOWED_PAIRS:
+                valid.append(convo)
+        return valid
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
 
 
 class ConversationCreateView(generics.CreateAPIView):
@@ -29,11 +47,17 @@ class ConversationCreateView(generics.CreateAPIView):
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        if other_user == request.user:
+        if str(other_user.id) == str(request.user.id):
             return Response({"detail": "Cannot message yourself."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Find existing 1:1 conversation — chained M2M filter unreliable on MongoDB,
-        # so intersect participant sets in Python.
+        # Enforce seeker ↔ recruiter only
+        if (request.user.role, other_user.role) not in ALLOWED_PAIRS:
+            return Response(
+                {"detail": "Messaging is only allowed between seekers and recruiters."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Find existing conversation (Python intersection — M2M chained filter unreliable on MongoDB)
         my_ids = set(str(c.id) for c in Conversation.objects.filter(participants=request.user))
         their_ids = set(str(c.id) for c in Conversation.objects.filter(participants=other_user))
         common = my_ids & their_ids
@@ -59,7 +83,6 @@ class MessageListView(generics.ListCreateAPIView):
         ).first()
         if not conversation:
             return Message.objects.none()
-        # Mark messages as read
         Message.objects.filter(conversation=conversation, is_read=False).exclude(
             sender=self.request.user
         ).update(is_read=True)
