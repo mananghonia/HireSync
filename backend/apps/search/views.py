@@ -5,6 +5,57 @@ from django.db.models import Q
 
 from apps.jobs.serializers import JobListSerializer
 from apps.jobs.models import Job
+from apps.profiles.models import Skill
+
+
+def _extract_resume_skills(profile):
+    """
+    Extract text from the seeker's resume (PDF or DOCX) and return a dict
+    {skill_id: 1.5} for every skill whose name appears in the text.
+    Weight 1.5 sits between manually-selected skills (2.0) and
+    applied-job signals (0.5×freq).
+    """
+    if not profile.resume:
+        return {}
+
+    try:
+        resume_file = profile.resume
+        name = (resume_file.name or "").lower()
+        resume_file.seek(0)
+        raw_bytes = resume_file.read()
+        resume_file.seek(0)
+    except Exception:
+        return {}
+
+    text = ""
+    try:
+        if name.endswith(".pdf"):
+            import pdfplumber, io
+            with pdfplumber.open(io.BytesIO(raw_bytes)) as pdf:
+                text = " ".join(page.extract_text() or "" for page in pdf.pages)
+        elif name.endswith((".docx", ".doc")):
+            import docx, io
+            doc = docx.Document(io.BytesIO(raw_bytes))
+            text = " ".join(p.text for p in doc.paragraphs)
+        else:
+            # Try plain-text resume as fallback
+            text = raw_bytes.decode("utf-8", errors="ignore")
+    except Exception:
+        return {}
+
+    if not text.strip():
+        return {}
+
+    text_lower = text.lower()
+    found = {}
+    for skill in Skill.objects.all():
+        skill_name = skill.name.lower()
+        # Match whole word / token — avoids "Java" matching inside "JavaScript"
+        import re
+        pattern = r"\b" + re.escape(skill_name) + r"\b"
+        if re.search(pattern, text_lower):
+            found[skill.id] = 1.5
+    return found
 
 
 class JobSearchView(APIView):
@@ -103,8 +154,14 @@ class JobRecommendationView(APIView):
                 applied_skill_counts[sk] += 1
             applied_titles.append(app.job.title.lower())
 
-        # Combined interest: profile skills (weight 2) + applied skills (weight by frequency)
+        # --- Resume-extracted skills (weight 1.5 each) ---
+        resume_skills = _extract_resume_skills(profile)
+
+        # Combined interest: manual skills (2.0) + resume skills (1.5) + applied skills (0.5×freq)
+        # Additive — a skill reinforced by multiple sources scores higher
         interest: dict = {sk: 2.0 for sk in profile_skills}
+        for sk_id, weight in resume_skills.items():
+            interest[sk_id] = interest.get(sk_id, 0) + weight
         for sk, count in applied_skill_counts.items():
             interest[sk] = interest.get(sk, 0) + count * 0.5
 
