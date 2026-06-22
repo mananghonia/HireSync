@@ -17,3 +17,8 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . .
 
 EXPOSE 8000
+
+COPY start.sh .
+RUN chmod +x start.sh
+
+CMD ["bash", "start.sh"]
