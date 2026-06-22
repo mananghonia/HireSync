@@ -11,7 +11,8 @@ dj-rest-auth==6.0.0
 django-allauth==0.61.1
 
 # Database
-psycopg2-binary==2.9.9
+django-mongodb-backend==5.2.3
+pymongo[srv]==4.17.0
 
 # Async / WebSocket
 channels==4.0.0
