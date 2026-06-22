@@ -16,6 +16,8 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
+RUN mkdir -p /app/staticfiles
+
 EXPOSE 8000
 
 COPY start.sh .
