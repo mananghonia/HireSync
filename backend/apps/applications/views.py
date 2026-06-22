@@ -132,6 +132,69 @@ Return ONLY valid JSON in this exact format:
     ]
 
 
+def _analyze_interview_transcript(application, transcript: str) -> dict:
+    import json
+    from django.conf import settings
+
+    api_key = getattr(settings, "ANTHROPIC_API_KEY", "")
+    job = application.job
+    applicant = application.applicant
+
+    prompt = f"""You are an expert hiring manager analyzing an interview transcript.
+
+JOB: {job.title}
+CANDIDATE: {applicant.get_full_name()}
+
+TRANSCRIPT:
+{transcript[:6000]}
+
+Analyze this interview and return ONLY valid JSON in this exact format:
+{{
+  "recommendation": "Strong Hire",
+  "summary": "2-3 sentence overall summary of the candidate's performance",
+  "strengths": ["strength 1", "strength 2", "strength 3"],
+  "concerns": ["concern 1", "concern 2"],
+  "key_quotes": [
+    {{"quote": "exact quote from transcript", "context": "why this is notable"}},
+    {{"quote": "another quote", "context": "why this is notable"}}
+  ],
+  "scores": {{
+    "Technical": 8,
+    "Communication": 7,
+    "Problem Solving": 8,
+    "Culture Fit": 9
+  }}
+}}
+
+recommendation must be one of: "Strong Hire", "Hire", "Maybe", "No Hire".
+scores are out of 10. Base everything strictly on what was said in the transcript."""
+
+    if api_key:
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=api_key)
+            msg = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = msg.content[0].text.strip()
+            start, end = raw.find("{"), raw.rfind("}") + 1
+            if start >= 0 and end > start:
+                return json.loads(raw[start:end])
+        except Exception:
+            pass
+
+    return {
+        "recommendation": "Unable to analyze",
+        "summary": "AI analysis unavailable. Please try again.",
+        "strengths": [],
+        "concerns": [],
+        "key_quotes": [],
+        "scores": {"Technical": 0, "Communication": 0, "Problem Solving": 0, "Culture Fit": 0},
+    }
+
+
 def _fire(task_name, *args):
     try:
         from apps.notifications import tasks as t
@@ -300,6 +363,15 @@ class RecruiterApplicationViewSet(viewsets.ReadOnlyModelViewSet):
         application = self.get_object()
         questions = _generate_interview_questions(application)
         return Response({"categories": questions})
+
+    @action(detail=True, methods=["post"])
+    def analyze_transcript(self, request, pk=None):
+        application = self.get_object()
+        transcript = request.data.get("transcript", "").strip()
+        if len(transcript) < 50:
+            return Response({"detail": "Transcript is too short."}, status=status.HTTP_400_BAD_REQUEST)
+        result = _analyze_interview_transcript(application, transcript)
+        return Response(result)
 
     @action(detail=True, methods=["post"])
     def add_note(self, request, pk=None):

@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useRef } from "react";
 import toast from "react-hot-toast";
-import { User, FileText, MessageCircle, Wand2, X, Copy, Check, ChevronDown, ChevronUp, Calendar } from "lucide-react";
+import { User, FileText, MessageCircle, Wand2, X, Copy, Check, ChevronDown, ChevronUp, Calendar, ClipboardList } from "lucide-react";
 import api from "../../lib/axios";
 
 const PIPELINE_STAGES = ["applied", "viewed", "shortlisted", "interview_scheduled", "interviewed", "offer_made", "hired", "rejected"];
@@ -234,12 +234,166 @@ function QuestionPanel({ app, onClose }: { app: any; onClose: () => void }) {
   );
 }
 
+const RECOMMENDATION_STYLES: Record<string, string> = {
+  "Strong Hire": "bg-green-100 text-green-800",
+  "Hire": "bg-emerald-100 text-emerald-700",
+  "Maybe": "bg-yellow-100 text-yellow-700",
+  "No Hire": "bg-red-100 text-red-700",
+};
+
+function TranscriptPanel({ app, onClose }: { app: any; onClose: () => void }) {
+  const [transcript, setTranscript] = useState("");
+  const [result, setResult] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const analyze = async () => {
+    if (transcript.trim().length < 50) {
+      toast.error("Transcript is too short.");
+      return;
+    }
+    setIsAnalyzing(true);
+    try {
+      const res = await api.post(`/applications/manage/${app.id}/analyze_transcript/`, { transcript });
+      setResult(res.data);
+    } catch {
+      toast.error("Failed to analyze transcript.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-xl bg-white h-full flex flex-col shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
+          <div>
+            <h2 className="font-semibold text-gray-900 text-base flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-indigo-600" />
+              Transcript Analysis
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {app.applicant?.full_name} · {app.job?.title}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {!result ? (
+            <div className="flex flex-col gap-4 h-full">
+              <p className="text-sm text-gray-500">Paste the interview transcript below. Claude will analyze the candidate's performance and provide a structured assessment.</p>
+              <textarea
+                value={transcript}
+                onChange={e => setTranscript(e.target.value)}
+                placeholder="Paste interview transcript here…"
+                className="flex-1 min-h-64 w-full border border-gray-200 rounded-xl p-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+              />
+              <button
+                onClick={analyze}
+                disabled={isAnalyzing || transcript.trim().length < 50}
+                className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-2.5 rounded-xl font-medium text-sm hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
+                {isAnalyzing ? (
+                  <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg> Analyzing…</>
+                ) : (
+                  <><ClipboardList className="w-4 h-4" /> Analyze Transcript</>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Recommendation */}
+              <div className="flex items-center justify-between">
+                <span className={`text-sm font-semibold px-3 py-1.5 rounded-full ${RECOMMENDATION_STYLES[result.recommendation] ?? "bg-gray-100 text-gray-700"}`}>
+                  {result.recommendation}
+                </span>
+                <button onClick={() => setResult(null)} className="text-xs text-indigo-600 hover:underline">Analyze another</button>
+              </div>
+
+              {/* Scores */}
+              {result.scores && (
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(result.scores).map(([key, val]: [string, any]) => (
+                    <div key={key} className="bg-gray-50 rounded-xl p-3">
+                      <div className="text-xs text-gray-500 mb-1">{key}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(val / 10) * 100}%` }} />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-800">{val}/10</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Summary */}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Summary</h3>
+                <p className="text-sm text-gray-700 leading-relaxed">{result.summary}</p>
+              </div>
+
+              {/* Strengths */}
+              {result.strengths?.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Strengths</h3>
+                  <ul className="space-y-1.5">
+                    {result.strengths.map((s: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="text-green-500 mt-0.5">✓</span> {s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Concerns */}
+              {result.concerns?.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Concerns</h3>
+                  <ul className="space-y-1.5">
+                    {result.concerns.map((c: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="text-amber-500 mt-0.5">!</span> {c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Key Quotes */}
+              {result.key_quotes?.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Key Quotes</h3>
+                  <div className="space-y-2">
+                    {result.key_quotes.map((q: any, i: number) => (
+                      <div key={i} className="border-l-2 border-indigo-300 pl-3 py-1">
+                        <p className="text-sm italic text-gray-700">"{q.quote}"</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{q.context}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ApplicantsPage() {
   const { jobId } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [filterStatus, setFilterStatus] = useState("");
   const [questionApp, setQuestionApp] = useState<any>(null);
+  const [transcriptApp, setTranscriptApp] = useState<any>(null);
   const [interviewApp, setInterviewApp] = useState<any>(null);
   const pendingSelectRef = useRef<HTMLSelectElement | null>(null);
 
@@ -345,6 +499,14 @@ export default function ApplicantsPage() {
                   <Wand2 className="w-4 h-4" />
                 </button>
 
+                {/* Analyze interview transcript */}
+                <button
+                  onClick={() => setTranscriptApp(app)}
+                  title="Analyze interview transcript"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
+                  <ClipboardList className="w-4 h-4" />
+                </button>
+
                 {/* Message applicant */}
                 <button
                   onClick={() => messageMutation.mutate(app.applicant?.id)}
@@ -386,6 +548,9 @@ export default function ApplicantsPage() {
 
       {/* Interview question slide-over */}
       {questionApp && <QuestionPanel app={questionApp} onClose={() => setQuestionApp(null)} />}
+
+      {/* Transcript analysis slide-over */}
+      {transcriptApp && <TranscriptPanel app={transcriptApp} onClose={() => setTranscriptApp(null)} />}
     </div>
   );
 }
