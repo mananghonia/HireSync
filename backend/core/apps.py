@@ -15,12 +15,14 @@ class CoreConfig(AppConfig):
             pass
 
         # Disconnect Django's create_permissions post_migrate signal.
+        # Django registers it with a dispatch_uid — must pass the same uid to disconnect.
         # django-mongodb-backend creates ContentType instances without PKs before
-        # hashing them into a set(), causing TypeError. We don't use Django's
-        # model-level permissions (JWT + custom role checks instead), so this is safe.
+        # hashing them into a set(), causing TypeError. Safe to remove because
+        # this project uses JWT + custom role permission classes, not Django model permissions.
         try:
-            from django.contrib.auth.management import create_permissions
             from django.db.models.signals import post_migrate
-            post_migrate.disconnect(create_permissions)
+            post_migrate.disconnect(
+                dispatch_uid="django.contrib.auth.management.create_permissions"
+            )
         except Exception:
             pass
