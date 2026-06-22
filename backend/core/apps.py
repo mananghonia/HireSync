@@ -13,3 +13,14 @@ class CoreConfig(AppConfig):
             serializers.ModelSerializer.serializer_field_mapping[ObjectIdAutoField] = serializers.CharField
         except ImportError:
             pass
+
+        # Disconnect Django's create_permissions post_migrate signal.
+        # django-mongodb-backend creates ContentType instances without PKs before
+        # hashing them into a set(), causing TypeError. We don't use Django's
+        # model-level permissions (JWT + custom role checks instead), so this is safe.
+        try:
+            from django.contrib.auth.management import create_permissions
+            from django.db.models.signals import post_migrate
+            post_migrate.disconnect(create_permissions)
+        except Exception:
+            pass
