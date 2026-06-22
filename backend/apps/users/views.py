@@ -9,6 +9,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from core.email import send_otp_email
+from core.throttling import AuthRateThrottle, OTPRateThrottle
 from .models import OTPVerification
 from .serializers import (
     UserRegistrationSerializer,
@@ -31,6 +32,7 @@ def _jwt_response(user):
 
 class SendRegistrationOTPView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [OTPRateThrottle]
 
     def post(self, request):
         email = request.data.get("email", "").strip().lower()
@@ -87,6 +89,7 @@ class RegisterView(generics.CreateAPIView):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+    throttle_classes = [AuthRateThrottle]
 
 
 class MeView(generics.RetrieveUpdateAPIView):

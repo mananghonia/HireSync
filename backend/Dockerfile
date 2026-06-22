@@ -16,7 +16,10 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /app/staticfiles
+RUN mkdir -p /app/staticfiles && \
+    DJANGO_SETTINGS_MODULE=hiresync.settings_dev \
+    MONGODB_URI="" \
+    python manage.py collectstatic --noinput
 
 EXPOSE 8000
 

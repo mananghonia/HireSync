@@ -3,7 +3,17 @@ Production settings — Railway deployment.
 Inherits all dev config and overrides for production.
 """
 import os
+import sentry_sdk
 from hiresync.settings_dev import *
+
+# ── Sentry error monitoring ────────────────────────────────────────────────────
+_SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if _SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=_SENTRY_DSN,
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )
 
 # ── Core ──────────────────────────────────────────────────────────────────────
 DEBUG = False
