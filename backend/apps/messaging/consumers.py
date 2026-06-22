@@ -17,8 +17,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         self.group_name = f"chat_{self.conversation_id}"
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
 
     async def disconnect(self, close_code):
         if hasattr(self, "group_name"):

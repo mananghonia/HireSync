@@ -10,13 +10,15 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
 
-        self.group_name = f"notifications_{user.id}"
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
-
-        # Send unread count on connect
-        count = await self.get_unread_count(user)
-        await self.send(json.dumps({"type": "unread_count", "count": count}))
+        self.group_name = f"notifications_{user.id}"
+        try:
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+            count = await self.get_unread_count(user)
+            await self.send(json.dumps({"type": "unread_count", "count": count}))
+        except Exception as e:
+            await self.send(json.dumps({"type": "error", "message": str(e)}))
+            await self.close()
 
     async def disconnect(self, close_code):
         if hasattr(self, "group_name"):
