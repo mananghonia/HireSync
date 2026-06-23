@@ -32,8 +32,16 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# ── Redis channel layer (WebSockets) ──────────────────────────────────────────
+# ── Redis cache (used by DRF throttling, sessions) ────────────────────────────
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+    }
+}
+
+# ── Redis channel layer (WebSockets) ──────────────────────────────────────────
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
