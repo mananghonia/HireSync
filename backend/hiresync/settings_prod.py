@@ -32,9 +32,6 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# ── Tell DRF there is 1 trusted proxy (Railway LB) so throttling uses the real client IP
-REST_FRAMEWORK["NUM_PROXIES"] = 1
-
 # ── Redis cache (used by DRF throttling, sessions) ────────────────────────────
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 CACHES = {
