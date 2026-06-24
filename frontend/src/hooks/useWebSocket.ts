@@ -58,6 +58,7 @@ export function useNotificationSocket(isAuthenticated: boolean) {
           );
         } else {
           toast(`🔔 ${notif.title}`, { duration: 4000, position: "bottom-right" });
+          qc.invalidateQueries({ queryKey: ["my-applications"] });
         }
       }
     };
