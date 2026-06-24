@@ -10,10 +10,10 @@ export default function SeekerProfilePage() {
   const { register, handleSubmit, reset } = useForm();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: profile } = useQuery({
+  const { data: profile } = useQuery<any>({
     queryKey: ["seeker-profile"],
     queryFn: () => api.get("/profiles/seeker/").then((r) => r.data),
-    onSuccess: (data) => reset(data),
+    onSuccess: (data: any) => reset(data),
   } as any);
 
   const updateMutation = useMutation({
