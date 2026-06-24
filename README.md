@@ -1,8 +1,19 @@
 # HireSync
 
-**Live:** [https://hire-sync-ten.vercel.app](https://hire-sync-ten.vercel.app)
+**Live:** [https://hire-sync-ten.vercel.app](https://hire-sync-ten.vercel.app) &nbsp;|&nbsp; ![CI](https://github.com/mananghonia/HireSync/actions/workflows/ci.yml/badge.svg)
 
-A full-stack hiring platform built with React, Django, and MongoDB. Connects job seekers and recruiters with AI-powered recommendations and real-time messaging.
+A full-stack hiring platform built with React, Django, and MongoDB. Connects job seekers and recruiters with AI-powered recommendations, real-time messaging, and interview analysis.
+
+---
+
+## Try It
+
+| Role | Email | Password |
+|---|---|---|
+| Job Seeker | demo.seeker@hiresync.com | Demo@1234 |
+| Recruiter | demo.recruiter@hiresync.com | Demo@1234 |
+
+No sign-up needed — log in and explore all features immediately.
 
 ---
 
@@ -19,6 +30,7 @@ A full-stack hiring platform built with React, Django, and MongoDB. Connects job
 - **Post & Manage Jobs** — create jobs with rich metadata (job type, experience level, salary range, skills, deadline, remote flag); pause, reactivate, or close listings
 - **Application Pipeline** — 8 stages (applied → viewed → shortlisted → interview scheduled → interviewed → offer made → hired → rejected); one-click stage transitions from the applicants view
 - **AI Interview Questions** — generate 12 tailored interview questions across 4 categories (Technical, Problem Solving, Behavioral, Role Fit) using the applicant's resume and job requirements
+- **AI Transcript Analysis** — paste an interview transcript and get an instant AI report: hire recommendation (Strong Hire / Hire / Maybe / No Hire), strengths, concerns, key quotes, and scores across Technical, Communication, Problem Solving, and Culture Fit
 - **Schedule Interviews** — pick a date/time from the applicant card; a notification email is sent automatically to the seeker
 - **Recruiter Notes** — attach private notes to any application
 - **Analytics Dashboard** — overview stats, application status breakdown (pie chart), daily applications over 30 days (bar chart), and top performing jobs by application count
@@ -64,6 +76,7 @@ A full-stack hiring platform built with React, Django, and MongoDB. Connects job
 | Frontend deploy | Vercel |
 | Backend deploy | Railway |
 | Monitoring | Sentry (production) |
+| CI | GitHub Actions |
 
 ---
 
@@ -71,6 +84,7 @@ A full-stack hiring platform built with React, Django, and MongoDB. Connects job
 
 ```
 HireSync/
+├── .github/workflows/ci.yml      # GitHub Actions CI (frontend + backend tests)
 ├── frontend/                      # React + Vite app (deployed to Vercel)
 │   └── src/
 │       ├── pages/
@@ -88,7 +102,7 @@ HireSync/
         ├── users/                 # Registration, login, Google OAuth, password management
         ├── profiles/              # JobSeekerProfile, RecruiterProfile, Company, Skills
         ├── jobs/                  # Job CRUD, SavedJob, JobView tracking
-        ├── applications/          # Application lifecycle, recruiter notes, AI question generation
+        ├── applications/          # Application lifecycle, recruiter notes, AI question/transcript analysis
         ├── messaging/             # Conversation + Message models, ChatConsumer (WS)
         ├── notifications/         # Notification model, NotificationConsumer (WS), email tasks
         ├── analytics/             # Recruiter dashboard stats, per-job analytics
@@ -183,6 +197,8 @@ cd backend
 pytest tests/ -v
 ```
 
+321 tests covering all API endpoints, models, permissions, and AI feature fallbacks.
+
 ---
 
 ## Environment Variables Reference
@@ -230,11 +246,16 @@ pytest tests/ -v
 3. Set `DJANGO_SETTINGS_MODULE=hiresync.settings_prod`
 4. Railway runs migrations on each deploy
 
+### CI/CD
+GitHub Actions runs on every push and pull request to `main`:
+- **Frontend job** — installs deps, runs `npm run test:coverage`, uploads coverage artifact
+- **Backend job** — installs deps, runs `pytest tests/ -v`
+
 ---
 
 ## AI Features
 
-All AI features use **Claude Haiku** and degrade gracefully when `ANTHROPIC_API_KEY` is absent — the platform falls back to ORM/regex-based equivalents.
+All AI features use **Claude Haiku** (`claude-haiku-4-5-20251001`) and degrade gracefully when `ANTHROPIC_API_KEY` is absent.
 
 ### Job Recommendations
 Signals are combined additively per job:
@@ -248,6 +269,16 @@ The top 20 jobs by weighted cosine similarity are returned.
 
 ### Interview Question Generation
 A recruiter clicks "Generate Questions" on any applicant card. Claude reads the job title, description, requirements, required skills, experience level, and the applicant's resume to produce 12 questions across four categories (Technical Skills, Problem Solving, Behavioral, Role Fit). Questions can be copied individually or all at once.
+
+### Interview Transcript Analysis
+A recruiter pastes an interview transcript directly into the applicant panel. Claude returns:
+- **Hire recommendation** — Strong Hire / Hire / Maybe / No Hire
+- **Summary** — 2-3 sentence overall assessment
+- **Strengths & Concerns** — bullet lists drawn from the transcript
+- **Key Quotes** — notable excerpts with context
+- **Scores out of 10** — Technical, Communication, Problem Solving, Culture Fit
+
+Falls back to a graceful "unavailable" response if the API key is absent.
 
 ---
 
