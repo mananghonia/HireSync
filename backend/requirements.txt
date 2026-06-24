@@ -39,3 +39,7 @@ google-auth==2.29.0
 
 # HTTP (used for Brevo email)
 requests==2.32.3
+
+# Testing
+pytest==8.3.5
+pytest-django==4.9.0

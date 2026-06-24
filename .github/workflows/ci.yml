@@ -43,12 +43,23 @@ jobs:
       run:
         working-directory: backend
 
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       DJANGO_SETTINGS_MODULE: hiresync.settings_dev
       SECRET_KEY: ci-test-secret-key-not-for-production
       DEBUG: "True"
       ALLOWED_HOSTS: localhost,127.0.0.1
-      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      MONGODB_URI: mongodb://localhost:27017
 
     steps:
       - uses: actions/checkout@v4
