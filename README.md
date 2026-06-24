@@ -1,5 +1,7 @@
 # HireSync
 
+**Live:** [https://hire-sync-ten.vercel.app](https://hire-sync-ten.vercel.app)
+
 A full-stack hiring platform built with React, Django, and MongoDB. Connects job seekers and recruiters with AI-powered recommendations and real-time messaging.
 
 ---
@@ -216,6 +218,8 @@ pytest tests/ -v
 ## Deployment
 
 ### Frontend → Vercel
+**Production URL:** [https://hire-sync-ten.vercel.app](https://hire-sync-ten.vercel.app)
+
 1. Connect the `frontend/` directory to a Vercel project
 2. Set `VITE_API_BASE_URL`, `VITE_WS_BASE_URL`, and `VITE_GOOGLE_CLIENT_ID` in the Vercel dashboard
 3. Build command: `npm run build` — output: `dist/`
