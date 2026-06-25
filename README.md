@@ -42,7 +42,7 @@ No sign-up needed — log in and explore all features immediately.
 
 ### Real-Time & Notifications
 - **WebSocket Chat** — messages delivered instantly via Django Channels; falls back to REST POST if the socket drops
-- **WebSocket Notifications** — in-app push on new messages and application status changes; unread count badge updates live
+- **WebSocket Notifications** — in-app push on new messages and application status changes; unread count badge, dashboard stats, and application status badges all update live without any page refresh
 - **Email Notifications** — transactional emails via Brevo on: application received, status change, interview scheduled, application withdrawn
 
 ### Auth
@@ -63,7 +63,7 @@ No sign-up needed — log in and explore all features immediately.
 | Charts | Recharts |
 | Icons | Lucide React |
 | API client | Axios (with JWT interceptor + 401 auto-refresh) |
-| Routing | React Router v6 |
+| Routing | React Router v6 (code-split with `React.lazy` + `Suspense`) |
 | Backend | Django, Django REST Framework |
 | Auth | SimpleJWT, Google OAuth (`google-auth`) |
 | WebSockets | Django Channels (ASGI) |
@@ -86,14 +86,17 @@ No sign-up needed — log in and explore all features immediately.
 HireSync/
 ├── .github/workflows/ci.yml      # GitHub Actions CI (frontend + backend tests)
 ├── frontend/                      # React + Vite app (deployed to Vercel)
+│   ├── tsconfig.json              # TypeScript config (strict mode, vite/client types)
+│   ├── tsconfig.node.json         # TypeScript config for Vite/Vitest config files
 │   └── src/
-│       ├── pages/
+│       ├── pages/                 # All pages lazy-loaded (React.lazy + Suspense)
 │       │   ├── auth/              # LoginPage, RegisterPage, ForgotPasswordPage
 │       │   ├── seeker/            # SeekerDashboard, ApplicationsPage, SeekerProfilePage, RecommendationsPage
 │       │   ├── recruiter/         # RecruiterDashboard, PostJobPage, ManageJobsPage, ApplicantsPage, AnalyticsDashboard
 │       │   ├── admin/             # AdminDashboard
 │       │   └── JobSearchPage, JobDetailPage, MessagesPage, NotificationsPage
 │       ├── features/              # Redux slices (auth, notifications)
+│       ├── hooks/                 # useAuth, useWebSocket (real-time notification + query invalidation)
 │       ├── lib/                   # Axios instance with JWT interceptors
 │       └── tests/                 # 487 Vitest tests — 81.4% line coverage
 │
@@ -293,5 +296,6 @@ applied → viewed → shortlisted → interview_scheduled → interviewed → o
 
 Each transition triggers:
 - An in-app WebSocket notification pushed to the seeker
+- Immediate live update of the seeker's dashboard stats and application status badges (no refresh needed)
 - A transactional email via Brevo
 - A row in `ApplicationStatusHistory` for audit trail
