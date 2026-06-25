@@ -169,8 +169,8 @@ npm install
 Create `frontend/.env`:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000/api
-VITE_WS_BASE_URL=ws://localhost:8000
+VITE_API_URL=http://localhost:8000/api/v1
+VITE_WS_URL=ws://localhost:8000
 VITE_GOOGLE_CLIENT_ID=your-google-client-id
 ```
 
@@ -228,8 +228,8 @@ pytest tests/ -v
 
 | Variable | Description |
 |---|---|
-| `VITE_API_BASE_URL` | Backend REST API base URL |
-| `VITE_WS_BASE_URL` | Backend WebSocket base URL |
+| `VITE_API_URL` | Backend REST API base URL (e.g. `https://your-app.railway.app/api/v1`) |
+| `VITE_WS_URL` | Backend WebSocket base URL (e.g. `wss://your-app.railway.app`) |
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID |
 
 ---
@@ -240,7 +240,7 @@ pytest tests/ -v
 **Production URL:** [https://hire-sync-ten.vercel.app](https://hire-sync-ten.vercel.app)
 
 1. Connect the `frontend/` directory to a Vercel project
-2. Set `VITE_API_BASE_URL`, `VITE_WS_BASE_URL`, and `VITE_GOOGLE_CLIENT_ID` in the Vercel dashboard
+2. Set `VITE_API_URL`, `VITE_WS_URL`, and `VITE_GOOGLE_CLIENT_ID` in the Vercel dashboard
 3. Build command: `npm run build` — output: `dist/`
 
 ### Backend → Railway
