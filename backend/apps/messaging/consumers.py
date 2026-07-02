@@ -48,20 +48,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
             {"type": "chat_message", "message": msg_payload},
         )
 
-        # Push popup notification to the other participant's notification channel
+        # Persist + push popup notification to the other participant. Persisting (not just
+        # pushing over the socket) means the notification survives if the recipient isn't
+        # connected at this exact moment — it'll show up in their notification list/unread
+        # count on next load, same as every other notification type.
         other_id = await self.get_other_participant_id(user, self.conversation_id)
         if other_id:
+            notification = await self.create_notification(other_id, user, content)
             await self.channel_layer.group_send(
                 f"notifications_{other_id}",
                 {
                     "type": "notification_message",
                     "notification": {
-                        "id": str(message.id),
-                        "type": "new_message",
-                        "title": f"New message from {user.get_full_name()}",
-                        "message": content[:80] + ("…" if len(content) > 80 else ""),
-                        "data": {"conversation_id": str(self.conversation_id)},
-                        "created_at": message.sent_at.isoformat(),
+                        "id": str(notification.id),
+                        "type": notification.notification_type,
+                        "title": notification.title,
+                        "message": notification.message,
+                        "data": notification.data,
+                        "created_at": notification.created_at.isoformat(),
                     },
                 },
             )
@@ -91,3 +95,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message = Message.objects.create(conversation=conversation, sender=user, content=content)
         Conversation.objects.filter(id=conversation_id).update(updated_at=message.sent_at)
         return message
+
+    @database_sync_to_async
+    def create_notification(self, recipient_id, sender, content):
+        from apps.notifications.models import Notification
+        return Notification.objects.create(
+            recipient_id=recipient_id,
+            notification_type="new_message",
+            title=f"New message from {sender.get_full_name()}",
+            message=content[:80] + ("…" if len(content) > 80 else ""),
+            data={"conversation_id": str(self.conversation_id)},
+        )

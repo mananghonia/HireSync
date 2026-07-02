@@ -53,15 +53,12 @@ class ConversationCreateView(generics.CreateAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Find existing conversation (Python intersection — M2M chained filter unreliable on MongoDB)
-        my_ids = set(str(c.id) for c in Conversation.objects.filter(participants=request.user))
-        their_ids = set(str(c.id) for c in Conversation.objects.filter(participants=other_user))
-        common = my_ids & their_ids
-
-        conversation = Conversation.objects.filter(id__in=list(common)).first() if common else None
-
-        if not conversation:
-            conversation = Conversation.objects.create()
+        # get_or_create on the unique participant_key is atomic against the race where two
+        # concurrent "start conversation" calls between the same pair both miss an existing
+        # conversation: Django retries the get() if create() loses to the unique constraint.
+        key = Conversation.key_for(request.user.id, other_user.id)
+        conversation, created = Conversation.objects.get_or_create(participant_key=key)
+        if created:
             conversation.participants.add(request.user, other_user)
 
         serializer = ConversationSerializer(conversation, context={"request": request})
@@ -84,11 +81,16 @@ class MessageListView(generics.ListCreateAPIView):
         ).update(is_read=True)
         return Message.objects.filter(conversation=conversation)
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
         conversation_id = self.kwargs["conversation_id"]
         conversation = Conversation.objects.filter(
-            id=conversation_id, participants=self.request.user
+            id=conversation_id, participants=request.user
         ).first()
         if not conversation:
-            return
-        serializer.save(sender=self.request.user, conversation=conversation)
+            return Response({"detail": "Conversation not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(sender=request.user, conversation=conversation)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)

@@ -12,7 +12,7 @@ BASE = "/api/v1/messaging"
 @pytest.fixture
 def conversation(db, seeker, recruiter):
     from apps.messaging.models import Conversation
-    conv = Conversation.objects.create()
+    conv = Conversation.objects.create(participant_key=Conversation.key_for(seeker.id, recruiter.id))
     conv.participants.add(seeker, recruiter)
     return conv
 
@@ -86,6 +86,22 @@ class TestCreateConversation:
         r = api_client.post(self.url, {"user_id": str(seeker.pk)}, format="json")
         assert r.status_code == 401
 
+    def test_creating_conversation_is_idempotent_under_key_collision(self, seeker, recruiter):
+        """
+        Simulates the race: another concurrent request already won and created the
+        conversation for this exact pair. get_or_create on the unique participant_key
+        must find that row instead of creating a second one.
+        """
+        from apps.messaging.models import Conversation
+        key = Conversation.key_for(seeker.id, recruiter.id)
+        winner = Conversation.objects.create(participant_key=key)
+        winner.participants.add(seeker, recruiter)
+
+        conv, created = Conversation.objects.get_or_create(participant_key=key)
+        assert created is False
+        assert conv.pk == winner.pk
+        assert Conversation.objects.filter(participant_key=key).count() == 1
+
 
 # ── Messages ──────────────────────────────────────────────────────────────────
 
@@ -129,13 +145,28 @@ class TestMessages:
         from apps.messaging.models import Conversation
         other_seeker = make_user(email="other_participant@test.com", role="seeker")
         other_rec = make_user(email="other_rec2@test.com", role="recruiter")
-        other_conv = Conversation.objects.create()
+        other_conv = Conversation.objects.create(participant_key=Conversation.key_for(other_seeker.id, other_rec.id))
         other_conv.participants.add(other_seeker, other_rec)
         r = seeker_client.get(self._url(str(other_conv.pk)))
         assert r.status_code == 200
         # Non-participant gets empty queryset; response may be list or paginated
         count = r.data.get("count", len(r.data)) if isinstance(r.data, dict) else len(r.data)
         assert count == 0
+
+    def test_non_participant_cannot_send_message(self, seeker_client, make_user):
+        """
+        A non-participant used to get a fake 201 success with the message never
+        actually persisted. Must now be rejected outright with no row created.
+        """
+        from apps.messaging.models import Conversation, Message
+        other_seeker = make_user(email="intruder_seeker@test.com", role="seeker")
+        other_rec = make_user(email="intruder_rec@test.com", role="recruiter")
+        other_conv = Conversation.objects.create(participant_key=Conversation.key_for(other_seeker.id, other_rec.id))
+        other_conv.participants.add(other_seeker, other_rec)
+
+        r = seeker_client.post(self._url(str(other_conv.pk)), {"content": "sneaky message"}, format="json")
+        assert r.status_code == 404
+        assert Message.objects.filter(conversation=other_conv).count() == 0
 
     def test_unauthenticated_returns_401(self, api_client, conversation):
         r = api_client.get(self._url(str(conversation.pk)))
