@@ -1,10 +1,11 @@
+from django.db.models import F
 from django.utils import timezone
 from rest_framework import viewsets, generics, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
-from core.permissions import IsRecruiter, IsJobSeeker
+from core.permissions import IsRecruiter, IsJobSeeker, IsOwnerOrAdmin
 from .filters import JobFilter
 from .models import Job, SavedJob, JobView
 from .serializers import (
@@ -32,7 +33,9 @@ class JobViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:
             return [AllowAny()]
-        if self.action in ["create", "update", "partial_update", "destroy", "my_jobs"]:
+        if self.action in ["update", "partial_update", "destroy"]:
+            return [IsRecruiter(), IsOwnerOrAdmin()]
+        if self.action in ["create", "my_jobs"]:
             return [IsRecruiter()]
         return [IsAuthenticated()]
 
@@ -52,7 +55,8 @@ class JobViewSet(viewsets.ModelViewSet):
         # Track view
         ip = request.META.get("REMOTE_ADDR")
         JobView.objects.create(job=instance, user=request.user if request.user.is_authenticated else None, ip_address=ip)
-        Job.objects.filter(pk=instance.pk).update(views_count=instance.views_count + 1)
+        Job.objects.filter(pk=instance.pk).update(views_count=F("views_count") + 1)
+        instance.refresh_from_db(fields=["views_count"])
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 

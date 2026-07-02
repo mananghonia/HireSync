@@ -3,9 +3,18 @@ Tests for apps/jobs — job CRUD, saved jobs, view tracking.
 """
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
+from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import RefreshToken
 
 
 BASE = "/api/v1/jobs"
+
+
+def _client_for(user):
+    client = APIClient()
+    token = RefreshToken.for_user(user)
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(token.access_token)}")
+    return client
 
 
 # ── Job List ──────────────────────────────────────────────────────────────────
@@ -167,6 +176,13 @@ class TestJobUpdate:
         job.refresh_from_db()
         assert job.status == "closed"
 
+    def test_other_recruiter_cannot_update_job(self, job, make_user):
+        other = make_user(email="other-update@test.com", role="recruiter")
+        r = _client_for(other).patch(f"{BASE}/{str(job.pk)}/", {"title": "Hijacked"}, format="json")
+        assert r.status_code == 403
+        job.refresh_from_db()
+        assert job.title == "Backend Developer"
+
 
 # ── Job Delete ────────────────────────────────────────────────────────────────
 
@@ -179,6 +195,13 @@ class TestJobDelete:
     def test_seeker_cannot_delete_job(self, seeker_client, job):
         r = seeker_client.delete(f"{BASE}/{str(job.pk)}/")
         assert r.status_code == 403
+
+    def test_other_recruiter_cannot_delete_job(self, job, make_user):
+        from apps.jobs.models import Job
+        other = make_user(email="other-delete@test.com", role="recruiter")
+        r = _client_for(other).delete(f"{BASE}/{str(job.pk)}/")
+        assert r.status_code == 403
+        assert Job.objects.filter(pk=job.pk).exists()
 
 
 # ── My Jobs ───────────────────────────────────────────────────────────────────

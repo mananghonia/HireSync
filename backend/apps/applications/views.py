@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 from rest_framework import viewsets, generics, status
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -280,7 +281,15 @@ class SeekerApplicationViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        application = serializer.save(applicant=request.user)
+        try:
+            application = serializer.save(applicant=request.user)
+        except IntegrityError:
+            # Lost a race against a concurrent apply for the same (applicant, job) pair —
+            # the DB's unique constraint rejected this insert.
+            return Response(
+                {"detail": "You have already applied to this job."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         self._attach_resume(application, request)
         ApplicationStatusHistory.objects.create(
             application=application,

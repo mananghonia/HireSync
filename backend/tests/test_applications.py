@@ -59,6 +59,29 @@ class TestSeekerApply:
         assert r.status_code == 400
         assert "already applied" in r.data["detail"].lower()
 
+    def test_concurrent_duplicate_apply_returns_400_not_500(self, seeker_client, job, monkeypatch):
+        """
+        Simulates the race condition: two concurrent requests both pass the
+        existing-application check before either commits, and the DB's unique
+        index on (applicant, job) rejects the second insert with an
+        IntegrityError. The view must return a graceful 400, not crash.
+        """
+        from django.db import IntegrityError
+        from apps.applications.serializers import ApplicationCreateSerializer
+
+        def _raise_integrity_error(*args, **kwargs):
+            raise IntegrityError("duplicate key error: applicant_id, job_id")
+
+        monkeypatch.setattr(ApplicationCreateSerializer, "save", _raise_integrity_error)
+
+        r = seeker_client.post(self.url, {
+            "job": str(job.pk),
+            "cover_letter": "Racing request",
+            "resume_snapshot": _resume(),
+        }, format="multipart")
+        assert r.status_code == 400
+        assert "already applied" in r.data["detail"].lower()
+
     def test_recruiter_cannot_apply(self, recruiter_client, job):
         r = recruiter_client.post(self.url, {
             "job": str(job.pk),
