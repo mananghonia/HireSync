@@ -1,6 +1,7 @@
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 
 from .models import Conversation, Message
@@ -70,15 +71,14 @@ class MessageListView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        # Safe GET — no write side effects. Marking messages read is a separate,
+        # explicit action (see MarkMessagesReadView) triggered by the client.
         conversation_id = self.kwargs["conversation_id"]
         conversation = Conversation.objects.filter(
             id=conversation_id, participants=self.request.user
         ).first()
         if not conversation:
             return Message.objects.none()
-        Message.objects.filter(conversation=conversation, is_read=False).exclude(
-            sender=self.request.user
-        ).update(is_read=True)
         return Message.objects.filter(conversation=conversation)
 
     def create(self, request, *args, **kwargs):
@@ -94,3 +94,20 @@ class MessageListView(generics.ListCreateAPIView):
         serializer.save(sender=request.user, conversation=conversation)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class MarkMessagesReadView(APIView):
+    """Explicit action: the client tells us the user has opened this conversation."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, conversation_id):
+        conversation = Conversation.objects.filter(
+            id=conversation_id, participants=request.user
+        ).first()
+        if not conversation:
+            return Response({"detail": "Conversation not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        updated = Message.objects.filter(conversation=conversation, is_read=False).exclude(
+            sender=request.user
+        ).update(is_read=True)
+        return Response({"marked_read": updated})

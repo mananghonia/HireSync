@@ -127,19 +127,21 @@ class TestMessages:
         }, format="json")
         assert r.status_code == 201
 
-    def test_messages_auto_marked_read_on_list(self, seeker_client, recruiter, conversation):
+    def test_listing_messages_does_not_mark_them_read(self, seeker_client, recruiter, conversation):
+        """
+        GET must be side-effect-free — marking read is now an explicit separate
+        action (MarkMessagesReadView), not something that happens just by listing.
+        """
         from apps.messaging.models import Message
-        # Create an unread message from the recruiter
         msg = Message.objects.create(
             conversation=conversation,
             sender=recruiter,
             content="Unread message from recruiter",
             is_read=False,
         )
-        # Seeker lists messages — recruiter's message should be auto-marked read
         seeker_client.get(self._url(str(conversation.pk)))
         msg.refresh_from_db()
-        assert msg.is_read is True
+        assert msg.is_read is False
 
     def test_non_participant_gets_empty_messages(self, seeker_client, make_user):
         from apps.messaging.models import Conversation
@@ -170,4 +172,45 @@ class TestMessages:
 
     def test_unauthenticated_returns_401(self, api_client, conversation):
         r = api_client.get(self._url(str(conversation.pk)))
+        assert r.status_code == 401
+
+
+# ── Mark Messages Read ─────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+class TestMarkMessagesRead:
+    def _url(self, conv_id):
+        return f"{BASE}/conversations/{conv_id}/read/"
+
+    def test_marks_unread_messages_from_other_sender_as_read(self, seeker_client, recruiter, conversation):
+        from apps.messaging.models import Message
+        msg = Message.objects.create(
+            conversation=conversation, sender=recruiter, content="Hi", is_read=False,
+        )
+        r = seeker_client.post(self._url(str(conversation.pk)))
+        assert r.status_code == 200
+        assert r.data["marked_read"] == 1
+        msg.refresh_from_db()
+        assert msg.is_read is True
+
+    def test_does_not_mark_own_messages_read(self, seeker_client, seeker, conversation):
+        from apps.messaging.models import Message
+        msg = Message.objects.create(
+            conversation=conversation, sender=seeker, content="My own message", is_read=False,
+        )
+        seeker_client.post(self._url(str(conversation.pk)))
+        msg.refresh_from_db()
+        assert msg.is_read is False
+
+    def test_non_participant_returns_404(self, seeker_client, make_user):
+        from apps.messaging.models import Conversation
+        other_seeker = make_user(email="read_intruder_seeker@test.com", role="seeker")
+        other_rec = make_user(email="read_intruder_rec@test.com", role="recruiter")
+        other_conv = Conversation.objects.create(participant_key=Conversation.key_for(other_seeker.id, other_rec.id))
+        other_conv.participants.add(other_seeker, other_rec)
+        r = seeker_client.post(self._url(str(other_conv.pk)))
+        assert r.status_code == 404
+
+    def test_unauthenticated_returns_401(self, api_client, conversation):
+        r = api_client.post(self._url(str(conversation.pk)))
         assert r.status_code == 401

@@ -38,6 +38,13 @@ export default function MessagesPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Explicitly tell the backend the user opened this conversation, so unread
+  // messages get marked read — a deliberate action, not a GET side effect.
+  useEffect(() => {
+    if (!activeConvo) return;
+    api.post(`/messaging/conversations/${activeConvo.id}/read/`).catch(() => {});
+  }, [activeConvo?.id]);
+
   // WebSocket for real-time messages in active convo
   useEffect(() => {
     if (!activeConvo) return;
