@@ -102,6 +102,27 @@ class TestSeekerApply:
         )
         assert history.exists()
 
+    def test_notification_is_fired_via_celery_delay(self, seeker_client, job, monkeypatch):
+        """
+        CELERY_TASK_ALWAYS_EAGER makes .delay() and a direct call behave
+        identically in tests, so this asserts _fire() specifically invokes
+        .delay() (proving real async wiring), not just that a notification
+        eventually gets created.
+        """
+        from apps.notifications import tasks as t
+
+        calls = []
+        monkeypatch.setattr(t.send_new_application_notification, "delay", lambda *a: calls.append(a))
+
+        r = seeker_client.post(self.url, {
+            "job": str(job.pk),
+            "cover_letter": "Test",
+            "resume_snapshot": _resume(),
+        }, format="multipart")
+        assert r.status_code == 201
+        assert len(calls) == 1
+        assert calls[0][0] == r.data["id"]
+
 
 # ── Seeker: List Applications ─────────────────────────────────────────────────
 

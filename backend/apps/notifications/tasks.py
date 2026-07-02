@@ -1,5 +1,4 @@
-def shared_task(fn):
-    return fn
+from celery import shared_task
 
 try:
     from asgiref.sync import async_to_sync

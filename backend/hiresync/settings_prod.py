@@ -49,6 +49,12 @@ CHANNEL_LAYERS = {
     }
 }
 
+# ── Celery — real broker; needs a worker process actually consuming the queue.
+# (Without one deployed, .delay() calls just fail to enqueue and are swallowed
+# by the same try/except that already guards every notification call site.) ──
+CELERY_BROKER_URL = REDIS_URL
+CELERY_TASK_ALWAYS_EAGER = False
+
 # ── CORS ──────────────────────────────────────────────────────────────────────
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()]

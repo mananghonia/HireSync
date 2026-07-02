@@ -199,7 +199,7 @@ scores are out of 10. Base everything strictly on what was said in the transcrip
 def _fire(task_name, *args):
     try:
         from apps.notifications import tasks as t
-        getattr(t, task_name)(*args)
+        getattr(t, task_name).delay(*args)
     except Exception:
         pass
 
