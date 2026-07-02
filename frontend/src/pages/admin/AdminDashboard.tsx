@@ -250,9 +250,10 @@ function JobsTab() {
   );
 
   const statusColors: Record<string, string> = {
-    open: "bg-green-100 text-green-700",
+    active: "bg-green-100 text-green-700",
     closed: "bg-red-100 text-red-700",
     paused: "bg-yellow-100 text-yellow-700",
+    draft: "bg-gray-100 text-gray-600",
   };
 
   return (
@@ -266,9 +267,10 @@ function JobsTab() {
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
           <option value="">All statuses</option>
-          <option value="open">Open</option>
-          <option value="closed">Closed</option>
+          <option value="draft">Draft</option>
+          <option value="active">Active</option>
           <option value="paused">Paused</option>
+          <option value="closed">Closed</option>
         </select>
       </div>
 
@@ -311,7 +313,8 @@ function JobsTab() {
                         value={j.status}
                         onChange={e => updateJob.mutate({ id: j.id, status: e.target.value })}
                         className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500">
-                        <option value="open">Open</option>
+                        <option value="draft">Draft</option>
+                        <option value="active">Active</option>
                         <option value="paused">Paused</option>
                         <option value="closed">Closed</option>
                       </select>

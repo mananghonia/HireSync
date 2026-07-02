@@ -49,6 +49,16 @@ class TestAdminStats:
         assert r.data["jobs"]["total"] >= 1
         assert r.data["applications"]["total"] >= 1
 
+    def test_active_jobs_count_reflects_real_active_status(self, admin_client, job):
+        """
+        active_jobs used to filter on status="open", which is not a real Job
+        status (real choices are draft/active/paused/closed) — so this count
+        was always 0 regardless of how many jobs were actually active.
+        """
+        assert job.status == "active"
+        r = admin_client.get(self.url)
+        assert r.data["jobs"]["active"] >= 1
+
     def test_seeker_gets_403(self, seeker_client):
         r = seeker_client.get(self.url)
         assert r.status_code == 403
@@ -301,11 +311,17 @@ class TestAdminJobPatch:
         job.refresh_from_db()
         assert job.status == "closed"
 
-    def test_admin_can_set_status_open(self, admin_client, job):
-        r = admin_client.patch(self.url(str(job.id)), {"status": "open"}, format="json")
+    def test_admin_can_set_status_active(self, admin_client, job):
+        r = admin_client.patch(self.url(str(job.id)), {"status": "active"}, format="json")
         assert r.status_code == 200
         job.refresh_from_db()
-        assert job.status == "open"
+        assert job.status == "active"
+
+    def test_admin_can_set_status_draft(self, admin_client, job):
+        r = admin_client.patch(self.url(str(job.id)), {"status": "draft"}, format="json")
+        assert r.status_code == 200
+        job.refresh_from_db()
+        assert job.status == "draft"
 
     def test_admin_can_set_status_paused(self, admin_client, job):
         r = admin_client.patch(self.url(str(job.id)), {"status": "paused"}, format="json")

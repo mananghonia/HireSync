@@ -64,7 +64,7 @@ const USERS = [
 ]
 
 const JOBS = [
-  { id: 'j1', title: 'Backend Developer', company: 'TechCo', location: 'Mumbai', recruiter: 'Bob', recruiter_email: 'bob@test.com', status: 'open', created_at: '2024-01-01T00:00:00Z' },
+  { id: 'j1', title: 'Backend Developer', company: 'TechCo', location: 'Mumbai', recruiter: 'Bob', recruiter_email: 'bob@test.com', status: 'active', created_at: '2024-01-01T00:00:00Z' },
   { id: 'j2', title: 'Frontend Engineer', company: 'StartupX', location: 'Pune', recruiter: 'Alice', recruiter_email: 'alice@test.com', status: 'closed', created_at: '2024-02-01T00:00:00Z' },
 ]
 
@@ -363,7 +363,7 @@ describe('AdminDashboard — Jobs tab', () => {
   it('shows job status badges', async () => {
     const { container } = wrap()
     await openJobsTab(container)
-    expect(container.textContent).toMatch(/open|closed/)
+    expect(container.textContent).toMatch(/active|closed/)
   })
 
   it('shows status filter dropdown', async () => {
@@ -416,11 +416,11 @@ describe('AdminDashboard — Jobs tab', () => {
     const selects = container.querySelectorAll('select') as NodeListOf<HTMLSelectElement>
     const statusFilterSelect = Array.from(selects).find(s => Array.from(s.options).some(o => o.value === 'paused'))
     if (statusFilterSelect) {
-      fireEvent.change(statusFilterSelect, { target: { value: 'open' } })
+      fireEvent.change(statusFilterSelect, { target: { value: 'active' } })
     }
 
     await waitFor(() => {
-      expect(api.get).toHaveBeenCalledWith('/admin/jobs/', expect.objectContaining({ params: expect.objectContaining({ status: 'open' }) }))
+      expect(api.get).toHaveBeenCalledWith('/admin/jobs/', expect.objectContaining({ params: expect.objectContaining({ status: 'active' }) }))
     }, { timeout: 3000 })
   })
 

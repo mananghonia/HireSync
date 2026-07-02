@@ -27,7 +27,7 @@ class AdminStatsView(APIView):
         recruiters = User.objects.filter(role="recruiter").count()
 
         total_jobs = Job.objects.count()
-        active_jobs = Job.objects.filter(status="open").count()
+        active_jobs = Job.objects.filter(status="active").count()
         jobs_this_month = Job.objects.filter(created_at__gte=month_ago).count()
 
         total_applications = Application.objects.count()
@@ -174,7 +174,8 @@ class AdminJobDetailView(APIView):
             return Response({"detail": "Job not found."}, status=404)
 
         new_status = request.data.get("status")
-        if new_status not in ("open", "closed", "paused"):
+        valid_statuses = {choice[0] for choice in Job.STATUS_CHOICES}
+        if new_status not in valid_statuses:
             return Response({"detail": "Invalid status."}, status=400)
 
         job.status = new_status
