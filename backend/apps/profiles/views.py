@@ -46,10 +46,10 @@ class SeekerProfileView(generics.RetrieveUpdateAPIView):
 
 
 class SeekerProfileDetailView(generics.RetrieveAPIView):
-    """Public read-only view of a seeker profile."""
+    """Recruiter-only read view of a seeker's full profile (includes resume + email)."""
     queryset = JobSeekerProfile.objects.select_related("user")
     serializer_class = JobSeekerProfileSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsRecruiter]
     lookup_field = "user__id"
     lookup_url_kwarg = "user_id"
 
@@ -92,10 +92,17 @@ class CompanyViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get", "post"], permission_classes=[IsRecruiter])
     def my_company(self, request):
-        """Get or create the recruiter's own company."""
+        """Get or create the recruiter's own company. Repeat POSTs update the
+        existing company in place instead of creating a new orphaned one."""
         profile, _ = RecruiterProfile.objects.get_or_create(user=request.user)
 
         if request.method == "POST":
+            if profile.company:
+                serializer = CompanySerializer(profile.company, data=request.data, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
             serializer = CompanySerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             company = serializer.save()

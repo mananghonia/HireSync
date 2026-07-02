@@ -94,6 +94,43 @@ class TestJobSearch:
         assert r.status_code == 200
         assert r.data["count"] >= 1
 
+    def test_non_numeric_page_returns_400_not_500(self, api_client, job):
+        r = api_client.get(self.url, {"page": "abc"})
+        assert r.status_code == 200  # falls back to page 1 instead of crashing
+
+    def test_non_numeric_page_size_returns_400_not_500(self, api_client, job):
+        r = api_client.get(self.url, {"page_size": "abc"})
+        assert r.status_code == 200  # falls back to default page_size instead of crashing
+
+    def test_non_numeric_salary_min_returns_400(self, api_client, job):
+        r = api_client.get(self.url, {"salary_min": "abc"})
+        assert r.status_code == 400
+
+    def test_non_numeric_salary_max_returns_400(self, api_client, job):
+        r = api_client.get(self.url, {"salary_max": "abc"})
+        assert r.status_code == 400
+
+    def test_page_size_is_capped(self, api_client, job):
+        r = api_client.get(self.url, {"page_size": "99999"})
+        assert r.status_code == 200
+        assert len(r.data["results"]) <= 100
+
+    def test_filter_by_skill_id_works(self, api_client, recruiter, company, skill):
+        """
+        Skill IDs are Mongo ObjectId hex strings, not integers — filtering used to
+        call int(skill_id), which raised ValueError on every real skill ID.
+        """
+        from apps.jobs.models import Job
+        j = Job.objects.create(
+            recruiter=recruiter, company=company,
+            title="Skilled Job", description="x", status="active",
+        )
+        j.skills.add(skill)
+        r = api_client.get(self.url, {"skills": str(skill.pk)})
+        assert r.status_code == 200
+        titles = [j["title"] for j in r.data["results"]]
+        assert "Skilled Job" in titles
+
 
 @pytest.mark.django_db
 class TestJobRecommendations:

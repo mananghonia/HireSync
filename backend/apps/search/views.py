@@ -152,6 +152,17 @@ def _extract_resume_skills(profile) -> dict:
 # Views
 # ---------------------------------------------------------------------------
 
+def _parse_positive_int(value):
+    """Returns the parsed int, or None if value is missing/not a valid positive integer."""
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 class JobSearchView(APIView):
     permission_classes = [AllowAny]
 
@@ -164,8 +175,14 @@ class JobSearchView(APIView):
         salary_max = request.query_params.get("salary_max")
         is_remote = request.query_params.get("is_remote")
         skills = request.query_params.getlist("skills")
-        page = int(request.query_params.get("page", 1))
-        page_size = int(request.query_params.get("page_size", 20))
+
+        page = _parse_positive_int(request.query_params.get("page")) or 1
+        page_size = min(_parse_positive_int(request.query_params.get("page_size")) or 20, 100)
+
+        if request.query_params.get("salary_min") is not None and _parse_positive_int(salary_min) is None:
+            return Response({"detail": "salary_min must be a positive integer."}, status=400)
+        if request.query_params.get("salary_max") is not None and _parse_positive_int(salary_max) is None:
+            return Response({"detail": "salary_max must be a positive integer."}, status=400)
 
         qs = Job.objects.filter(status="active").select_related("company", "recruiter")
 
@@ -185,12 +202,14 @@ class JobSearchView(APIView):
         if is_remote is not None:
             qs = qs.filter(is_remote=is_remote.lower() == "true")
         if salary_min:
-            qs = qs.filter(salary_min__gte=int(salary_min))
+            qs = qs.filter(salary_min__gte=_parse_positive_int(salary_min))
         if salary_max:
-            qs = qs.filter(salary_max__lte=int(salary_max))
+            qs = qs.filter(salary_max__lte=_parse_positive_int(salary_max))
         if skills:
+            # Skill IDs are Mongo ObjectIds (hex strings), not integers — filter on the
+            # raw string, matching how JobViewSet's django-filter-based skills filter does it.
             for skill_id in skills:
-                qs = qs.filter(skills__id=int(skill_id))
+                qs = qs.filter(skills__id=skill_id)
 
         qs = qs.distinct().order_by("-created_at")
         total = qs.count()

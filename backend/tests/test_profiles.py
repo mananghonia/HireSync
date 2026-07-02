@@ -102,6 +102,19 @@ class TestSeekerProfileDetail:
         r = recruiter_client.get(url)
         assert r.status_code == 404
 
+    def test_another_seeker_cannot_view_full_profile(self, seeker_client, make_user):
+        """
+        Any authenticated user (including unrelated seekers) used to be able to view
+        another seeker's full profile, exposing their resume and email. Must be
+        recruiter-only now.
+        """
+        other_seeker = make_user(email="victim_seeker@test.com", role="seeker")
+        from apps.profiles.models import JobSeekerProfile
+        JobSeekerProfile.objects.get_or_create(user=other_seeker)
+        url = f"{BASE}/seeker/{other_seeker.pk}/"
+        r = seeker_client.get(url)
+        assert r.status_code == 403
+
 
 # ── Experience ────────────────────────────────────────────────────────────────
 
@@ -214,6 +227,30 @@ class TestCompany:
             "name": "HackCorp",
         }, format="json")
         assert r.status_code == 403
+
+    def test_repeat_post_updates_existing_company_not_duplicate(self, recruiter_client):
+        """
+        Calling my_company POST when a company already exists used to create a
+        brand new Company row every time and silently reassign the recruiter to
+        it, orphaning the previous one. Must update in place instead.
+        """
+        from apps.profiles.models import Company
+        before = Company.objects.count()
+
+        r1 = recruiter_client.post(f"{self.url}my_company/", {
+            "name": "FirstCo", "industry": "technology", "size": "1-10",
+        }, format="json")
+        assert r1.status_code == 201
+        first_id = r1.data["id"]
+
+        r2 = recruiter_client.post(f"{self.url}my_company/", {
+            "name": "RenamedCo", "industry": "finance", "size": "11-50",
+        }, format="json")
+        assert r2.status_code == 200
+        assert r2.data["id"] == first_id
+        assert r2.data["name"] == "RenamedCo"
+
+        assert Company.objects.count() == before + 1
 
     def test_recruiter_gets_own_company(self, recruiter_client, recruiter_profile):
         r = recruiter_client.get(f"{self.url}my_company/")
